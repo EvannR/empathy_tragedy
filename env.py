@@ -1,5 +1,5 @@
 import numpy as np
-from agents import Agent
+from agents_policies import Agent
 import time 
 import os
 
@@ -122,7 +122,7 @@ class GridMaze:
 
 class RandomizedGridMaze(GridMaze):
     def __init__(self, size=4, nb_agents=1, agent_configs=None, reward_density=0.2, 
-                 respawn_prob=0.1, simple_mode=True, auto_consume=True, 
+                 respawn_prob=0.1, simple_mode=False, auto_consume=True, 
                  exploit_only=False):
         super().__init__(size, nb_agents, agent_configs)
         self.reward_density = reward_density
@@ -154,6 +154,18 @@ class RandomizedGridMaze(GridMaze):
                     # Choisir une cellule vide au hasard
                     i, j = empty_cells[np.random.choice(len(empty_cells))]
                     self.rewards[i, j] = np.random.uniform(0.1, 1.0)
+
+        elif not self.simple_mode:
+            for i in range(self.size):
+                for j in range(self.size):
+                    p_new_ressources_next_state = self.respawn_prob * self.reward_density
+                    if np.random.rand() < p_new_ressources_next_state:
+                        if self.rewards[i, j] == 0:
+                            # Apparition d'une nouvelle ressource
+                            self.rewards[i, j] = np.random.uniform(0.1, 1.0)
+                        else:
+                            # Disparition d'une ressource existante
+                            self.rewards[i, j] = 0
     
     def make_step(self, agent_idx, action):
         """Faire un pas et gérer la consommation des ressources."""

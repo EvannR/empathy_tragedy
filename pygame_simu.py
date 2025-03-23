@@ -1,17 +1,18 @@
 import pygame
 import numpy as np
 from env import RandomizedGridMaze  # Adapté au bon module
+from agents_policies import Agent
 
 # === PARAMÈTRES ===
 CELL_SIZE = 60
-GRID_SIZE = 6
+GRID_SIZE = 10
 STATS_WIDTH = 300
 VISIBLE_STATS_HEIGHT = GRID_SIZE * CELL_SIZE
 STATS_SCROLL_AREA = 1000  # Espace total pour scroller dans la stats area
 WINDOW_WIDTH = GRID_SIZE * CELL_SIZE + STATS_WIDTH
 WINDOW_HEIGHT = VISIBLE_STATS_HEIGHT
 FPS = 5
-NB_AGENTS = 8
+NB_AGENTS = 15
 
 # === COULEURS ===
 WHITE = (255, 255, 255)
@@ -35,7 +36,7 @@ env = RandomizedGridMaze(
     size=GRID_SIZE,
     nb_agents=NB_AGENTS,
     agent_configs=agent_configs,
-    reward_density=0.2,
+    reward_density=0.5,
     respawn_prob=0.2,
     simple_mode=True,
     auto_consume=True,
