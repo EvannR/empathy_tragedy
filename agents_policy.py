@@ -57,7 +57,7 @@ class DiffQLearning:
     def choose_action(self, current_state):
         """Sélectionne une action avec une politique softmax"""
         max_Q = np.max(self.Q[current_state])
-        tmp_Q = self.Q[current_state] - max_Q  # Éviter les valeurs trop grandes
+        tmp_Q = self.Q[current_state] - max_Q  # eviter les valeurs trop grandes
         exp_Q = np.exp(tmp_Q * self.beta)
         self.Q_probas[current_state, :] = exp_Q / np.sum(exp_Q)
         action = np.random.choice(np.arange(self.size_actions), p=self.Q_probas[current_state])
@@ -84,7 +84,7 @@ class DQN:
         self.gamma = gamma
         self.alpha = alpha
         
-        # Réseau de neurones
+        # reseau de neurones aec une couche cachée lol 
         self.model = nn.Sequential(
             nn.Linear(self.size_environment, 128),
             nn.ReLU(),
