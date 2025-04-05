@@ -159,6 +159,7 @@ class QAgent:
 
         return action
 
+
 class DQNNetwork(nn.Module):
     """réseau de neurones pour le DQN"""
     def __init__(self, state_size, action_size, hidden_size=64):

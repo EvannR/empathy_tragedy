@@ -2,7 +2,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from env_game_theoretic import GameTheoretic
-from agent_policies_game_theoretic import EpsilonGreedyQLearningAgent
+from agent_policies_game_theoretic import DQNAgent
 
 
 def run_simulation(
@@ -15,7 +15,7 @@ def run_simulation(
 ):
     env = GameTheoretic(num_agents=num_agents)
     agents = [
-        EpsilonGreedyQLearningAgent(
+        DQNAgent(
             id=i,
             action_space=env.action_space,
             state_shape=env.state_shape,
