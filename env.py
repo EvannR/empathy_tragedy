@@ -78,14 +78,14 @@ class GridMaze:
         self.time_step = 0
         self.agents_positions = self.initialize_positions()
         
-        # Mise à jour des positions des agents
+        # update of position of the agents
         for i, agent in enumerate(self.agents):
             agent.update_position(self.agents_positions[i])
 
     def update_environment(self):
         """Met à jour l'environnement à chaque pas de temps"""
         self.time_step += 1
-        # Dans la classe de base, rien n'est mis à jour
+        # dans la classe de base, rien n'est mis à jour
 
     def make_step(self, agent_idx, action):
         """Met à jour l'état d'un agent spécifique et enregistre les repas"""
@@ -93,16 +93,16 @@ class GridMaze:
         current_pos = agent.position
         new_pos = self.P[current_pos][action]
         
-        # Met à jour la position de l'agent
+        # update the position of the agent
         agent.update_position(new_pos)
         self.agents_positions[agent_idx] = new_pos
         
-        # Vérifie s'il y a une récompense à cette position
+        # vérifie s'il y a une récompense à cette position
         reward = self.rewards[new_pos]
         has_eaten = reward > 0
         
-        # Enregistre si l'agent a mangé
-        agent.record_meal(has_eaten, reward)
+        
+        agent.record_meal(has_eaten, reward)# enregistre si l'agent a mangé
         
         return reward, new_pos
     
@@ -127,7 +127,7 @@ class RandomizedGridMaze(GridMaze):
         super().__init__(size, nb_agents, agent_configs)
         self.reward_density = reward_density
         self.respawn_prob = respawn_prob
-        self.simple_mode = simple_mode  # Mode simple ou complexe
+        self.simple_mode = simple_mode  # Mode simple ou complexe ((( a checker )) 
         self.auto_consume = auto_consume  # Consommation automatique ou non
         self.exploit_only = exploit_only  # Consommation uniquement avec EXPLOIT
         self.initialize_rewards()
@@ -147,12 +147,10 @@ class RandomizedGridMaze(GridMaze):
         
         # En mode simple, on fait juste apparaître des ressources aléatoirement
         if self.simple_mode:
-            # Probabilité d'apparition de nouvelles ressources
-            if np.random.rand() < self.respawn_prob:
+            if np.random.rand() < self.respawn_prob: # probabilité d'apparition de nouvelles ressources
                 empty_cells = np.argwhere(self.rewards == 0)
                 if empty_cells.size > 0:
-                    # Choisir une cellule vide au hasard
-                    i, j = empty_cells[np.random.choice(len(empty_cells))]
+                    i, j = empty_cells[np.random.choice(len(empty_cells))] # choisir une cellule vide au hasard
                     self.rewards[i, j] = np.random.uniform(0.1, 1.0)
 
         elif not self.simple_mode:
@@ -161,11 +159,9 @@ class RandomizedGridMaze(GridMaze):
                     p_new_ressources_next_state = self.respawn_prob * self.reward_density
                     if np.random.rand() < p_new_ressources_next_state:
                         if self.rewards[i, j] == 0:
-                            # Apparition d'une nouvelle ressource
-                            self.rewards[i, j] = np.random.uniform(0.1, 1.0)
+                            self.rewards[i, j] = np.random.uniform(0.1, 1.0) #Apparition d'une nouvelle ressource
                         else:
-                            # Disparition d'une ressource existante
-                            self.rewards[i, j] = 0
+                            self.rewards[i, j] = 0 # disparition d'une ressource existante
     
     def make_step(self, agent_idx, action):
         """Faire un pas et gérer la consommation des ressources."""
@@ -173,11 +169,11 @@ class RandomizedGridMaze(GridMaze):
         current_pos = agent.position
         new_pos = self.P[current_pos][action]
         
-        # Met à jour la position de l'agent
-        agent.update_position(new_pos)
+       
+        agent.update_position(new_pos)  # met à jour la position de l'agent
         self.agents_positions[agent_idx] = new_pos
         
-        # Vérifier si l'agent peut consommer une ressource
+        # Vérifier si l'agent peut consommer une ressource :
         can_consume = True
         if self.exploit_only and action != 4:  # Si seul EXPLOIT permet de consommer
             can_consume = False
