@@ -1,9 +1,5 @@
 import numpy as np
-import os
-import sys
-# To access the file in the parent file
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from agents_policies import Agent
+from agent_policies_game_theoretic import Agent
 
 
 class GameTheoretic:
