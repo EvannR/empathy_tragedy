@@ -68,10 +68,12 @@ empathy_to_test = "balanced"  # "high_empathy", "balanced", "low_empathy"
 episodes = 50
 steps = 30
 nb_tests = 3
-env_size = 6
 nb_agents = 3
+env_size = nb_agents
 np.random.seed(42)
 ###########
+
+state_size = 1 # 1 emotionnal value
 
 
 #########################################################################################################################
