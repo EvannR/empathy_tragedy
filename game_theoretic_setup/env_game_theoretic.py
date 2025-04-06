@@ -2,7 +2,7 @@ import numpy as np
 from agent_policies_game_theoretic import Agent
 
 
-class GameTheoretic:
+class GameTheoreticEnv:
     def __init__(self, size=4,
                  nb_agents=1,
                  agent_configs=None,
