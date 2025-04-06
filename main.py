@@ -74,11 +74,13 @@ np.random.seed(42)
 ###########
 
 
-
-
 #########################################################################################################################
 
-def run_single_test(agent_class, env_class, agent_config, env_config, emotion_config):
+def run_single_test(agent_class, 
+                    env_class, 
+                    agent_config, 
+                    env_config, 
+                    emotion_config):
     """exécute un seul test avec les configurations données"""
     
     # création de l'environnement

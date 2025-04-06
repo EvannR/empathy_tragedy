@@ -25,7 +25,11 @@ class Agent:
         return sum(self.meal_history)
 
 
-Experience = namedtuple('Experience', ['state', 'action', 'reward', 'next_state', 'done'])
+Experience = namedtuple('Experience', ['state',
+                                       'action',
+                                       'reward',
+                                       'next_state',
+                                       'done'])
 
 
 class ReplayBuffer:
@@ -121,22 +125,13 @@ class QAgent:
         state_key = self.get_state_key(state)
         next_state_key = self.get_state_key(next_state)
 
-        # valeurs Q actuelles
         q_values = self.get_q_values(state)
-
-        # valeurs Q de l'état suivant
         next_q_values = self.get_q_values(next_state) if not done else np.zeros(self.action_size)
-
-        # calcul de la cible (target Q-value)
         target = reward + self.gamma * np.max(next_q_values)
-
-        # mise à jour de la valeur Q
+        
         q_values[action] = q_values[action] + self.learning_rate * (target - q_values[action])
-
-        # mise à jour de la table Q
         self.q_table[state_key] = q_values
 
-        # décroissance de epsilon (exploration)
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
@@ -150,10 +145,8 @@ class QAgent:
         if self.current_state is not None and self.previous_action is not None:
             self.learn(self.current_state, self.previous_action, reward, next_state, done)
 
-        # mise à jour de l'état courant
         self.current_state = next_state
 
-        # sélection d'une nouvelle action
         action = self.select_action(next_state)
         self.previous_action = action
 
@@ -191,18 +184,13 @@ class DQNAgent:
         self.update_target_every = update_target_every
         self.steps = 0
 
-        # réseaux de neurones (policy et target)
         self.policy_network = DQNNetwork(state_size, action_size, hidden_size)
         self.target_network = DQNNetwork(state_size, action_size, hidden_size)
         self.target_network.load_state_dict(self.policy_network.state_dict())
 
-        # optimiseur
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=learning_rate)
-
-        # replay buffer
         self.memory = ReplayBuffer()
 
-        # état et action courants
         self.current_state = None
         self.previous_action = None
 
@@ -223,7 +211,6 @@ class DQNAgent:
             action_values = self.policy_network(state_tensor)
         self.policy_network.train()
 
-        # retourner un entier simple, pas un array
         return int(np.argmax(action_values.cpu().data.numpy()))
 
     def learn(self, experiences):
@@ -231,27 +218,21 @@ class DQNAgent:
         states, actions, rewards, next_states, dones = experiences
 
         try:
-            # calcul des prédictions Q actuelles
             q_expected = self.policy_network(states).gather(1, actions)
 
-            # calcul des cibles Q
             q_targets_next = self.target_network(next_states).detach().max(1)[0].unsqueeze(1)
             q_targets = rewards + (self.gamma * q_targets_next * (1 - dones))
 
-            # calcul de la perte
             loss = F.mse_loss(q_expected, q_targets)
 
-            # mise à jour des poids
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
-            # mise à jour du réseau cible périodiquement
             self.steps += 1
             if self.steps % self.update_target_every == 0:
                 self.target_network.load_state_dict(self.policy_network.state_dict())
         except Exception as e:
-            # afficher des informations de débogage en cas d'erreur
             print(f"erreur lors de l'apprentissage: {e}")
             print(f"états shape: {states.shape}")
             print(f"actions shape: {actions.shape}, type: {actions.dtype}")
@@ -262,14 +243,12 @@ class DQNAgent:
 
     def remember(self, state, action, reward, next_state, done):
         """stocke une expérience dans la mémoire"""
-        # conversion en types corrects avant de stocker
         if not isinstance(state, np.ndarray):
             state = np.array(state, dtype=np.float32)
 
         if not isinstance(next_state, np.ndarray):
             next_state = np.array(next_state, dtype=np.float32)
 
-        # assurer que reward et done sont des scalaires
         if isinstance(reward, (list, tuple, np.ndarray)):
             reward = float(reward[0])
         else:
@@ -284,12 +263,10 @@ class DQNAgent:
 
     def step(self, next_state, reward, done):
         """effectue une étape d'apprentissage"""
-        # s'assurer que next_state est un numpy array
         if not isinstance(next_state, np.ndarray):
             next_state = np.array(next_state, dtype=np.float32)
 
         if self.current_state is not None and self.previous_action is not None:
-            # stocke l'expérience
             self.remember(self.current_state, self.previous_action, reward, next_state, done)
 
             # apprentissage si suffisamment d'expériences
@@ -297,14 +274,11 @@ class DQNAgent:
                 experiences = self.memory.sample(self.batch_size)
                 self.learn(experiences)
 
-        # mise à jour de l'état courant
         self.current_state = next_state
 
-        # sélection d'une nouvelle action
         action = self.select_action(next_state)
         self.previous_action = action
 
-        # décroissance de epsilon (exploration)
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
@@ -354,10 +328,8 @@ class SocialRewardCalculator:
         """
         last_meal = 1 if agent.meal_history[-1] > 0 else 0
 
-        # poids de l'historique récent
         history_weight = sum(agent.meal_history) / len(agent.meal_history)
 
-        # combinaison pondérée
         satisfaction = self.beta * last_meal + (1 - self.beta) * history_weight
 
         return satisfaction
