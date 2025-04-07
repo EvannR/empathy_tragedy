@@ -8,7 +8,9 @@ import random
 
 
 class Agent:
-    def __init__(self, agent_id, memory_size=10):
+    def __init__(self,
+                 agent_id,
+                 memory_size=10):
         self.agent_id = agent_id
         self.memory_size = memory_size
         self.meal_history = deque([0] * memory_size, maxlen=memory_size)
@@ -23,6 +25,12 @@ class Agent:
     def get_recent_meals(self):
         """Retourne le nombre de reward dans l'historique"""
         return sum(self.meal_history)
+
+    def reset(self):
+            """Réinitialise l'état de l'agent pour un nouvel épisode"""
+            self.state = self.env.reset()
+            self.meal_history = deque([0] * self.memory_size, maxlen=self.memory_size)
+            self.total_meals = 0
 
 
 Experience = namedtuple('Experience', ['state',
@@ -154,21 +162,20 @@ class QAgent:
 
 
 class DQNNetwork(nn.Module):
-    """réseau de neurones pour le DQN"""
     def __init__(self, state_size, action_size, hidden_size=64):
         super(DQNNetwork, self).__init__()
+
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, action_size)
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+    def forward(self, state):
+        x = torch.relu(self.fc1(state))
+        x = torch.relu(self.fc2(x))
         return self.fc3(x)
 
 
 class DQNAgent:
-    """agent utilisant l'algorithme Deep Q-Network"""
     def __init__(self, state_size, action_size, agent_id=0, hidden_size=64,
                  learning_rate=0.001, gamma=0.99, epsilon=1.0,
                  epsilon_decay=0.995, epsilon_min=0.01, batch_size=64,
@@ -194,14 +201,13 @@ class DQNAgent:
         self.current_state = None
         self.previous_action = None
 
+        self.meal_history = []
+
     def select_action(self, state):
         """sélectionne une action selon la politique epsilon-greedy"""
         if np.random.random() < self.epsilon:
-            # exploration : action aléatoire
             return int(np.random.choice(self.action_size))
 
-        # exploitation : meilleure action selon le réseau de neurones
-        # assurons-nous que l'état est correctement formaté
         if not isinstance(state, np.ndarray):
             state = np.array(state, dtype=np.float32)
 
@@ -219,7 +225,6 @@ class DQNAgent:
 
         try:
             q_expected = self.policy_network(states).gather(1, actions)
-
             q_targets_next = self.target_network(next_states).detach().max(1)[0].unsqueeze(1)
             q_targets = rewards + (self.gamma * q_targets_next * (1 - dones))
 
@@ -234,11 +239,6 @@ class DQNAgent:
                 self.target_network.load_state_dict(self.policy_network.state_dict())
         except Exception as e:
             print(f"erreur lors de l'apprentissage: {e}")
-            print(f"états shape: {states.shape}")
-            print(f"actions shape: {actions.shape}, type: {actions.dtype}")
-            print(f"récompenses shape: {rewards.shape}")
-            print(f"états suivants shape: {next_states.shape}")
-            print(f"terminés shape: {dones.shape}")
             raise
 
     def remember(self, state, action, reward, next_state, done):
@@ -269,7 +269,6 @@ class DQNAgent:
         if self.current_state is not None and self.previous_action is not None:
             self.remember(self.current_state, self.previous_action, reward, next_state, done)
 
-            # apprentissage si suffisamment d'expériences
             if len(self.memory) > self.batch_size:
                 experiences = self.memory.sample(self.batch_size)
                 self.learn(experiences)
@@ -278,6 +277,8 @@ class DQNAgent:
 
         action = self.select_action(next_state)
         self.previous_action = action
+
+        self.meal_history.append(action)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
@@ -326,10 +327,16 @@ class SocialRewardCalculator:
         float
             score de satisfaction personnelle
         """
-        last_meal = 1 if agent.meal_history[-1] > 0 else 0
 
-        history_weight = sum(agent.meal_history) / len(agent.meal_history)
+        if len(agent.meal_history) > 0:
+            last_meal = 1 if agent.meal_history[-1] > 0 else 0
+            history_weight = sum(agent.meal_history) / len(agent.meal_history)
+        else:
+            # Si meal_history est vide, définir des valeurs par défaut
+            last_meal = 0  # Valeur par défaut pour le dernier repas
+            history_weight = 0  # Valeur par défaut pour le poids de l'historique
 
+        # Calcul de la satisfaction personnelle
         satisfaction = self.beta * last_meal + (1 - self.beta) * history_weight
 
         return satisfaction
