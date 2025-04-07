@@ -7,7 +7,8 @@ class GameTheoreticEnv:
                  nb_agents=1,
                  agent_configs=None,
                  initial_resources=100,
-                 regen_rate=1.0):
+                 regen_rate=1.0,
+                 env_type="deterministic"):
         self.size = size
         self.nb_agents = nb_agents
         self.number_actions = 2  # 0: Not Exploit, 1: Exploit
@@ -16,6 +17,7 @@ class GameTheoreticEnv:
 
         self.initial_resources = initial_resources
         self.regen_rate = regen_rate
+        self.env_type = env_type  # "deterministic" or "stochastic"
 
         self.init_agents()
         self.new_episode()
@@ -41,13 +43,21 @@ class GameTheoreticEnv:
         consumed = 0
 
         for i, act in enumerate(actions):
+            reward = 0.0
+            success = False
+
             if act == 1 and self.resource > 0:
-                reward = 1.0
-                consumed += 1
-                self.agents[i].record_meal(True, reward)
-            else:
-                reward = 0.0
-                self.agents[i].record_meal(False, reward)
+                if self.env_type == "stochastic":
+                    p = self.resource / self.initial_resources
+                    success = np.random.rand() < p
+                else:
+                    success = True
+
+                if success:
+                    reward = 1.0
+                    consumed += 1
+
+            self.agents[i].record_meal(success, reward)
             rewards.append(reward)
 
         self.update_environment(consumed)
