@@ -27,10 +27,10 @@ class Agent:
         return sum(self.meal_history)
 
     def reset(self):
-            """Réinitialise l'état de l'agent pour un nouvel épisode"""
-            self.state = self.env.reset()
-            self.meal_history = deque([0] * self.memory_size, maxlen=self.memory_size)
-            self.total_meals = 0
+        """Réinitialise l'état de l'agent pour un nouvel épisode"""
+        self.state = self.env.reset()
+        self.meal_history = deque([0] * self.memory_size, maxlen=self.memory_size)
+        self.total_meals = 0
 
 
 Experience = namedtuple('Experience', ['state',
@@ -175,11 +175,12 @@ class DQNNetwork(nn.Module):
         return self.fc3(x)
 
 
-class DQNAgent:
+class DQNAgent(Agent):
     def __init__(self, state_size, action_size, agent_id=0, hidden_size=64,
                  learning_rate=0.001, gamma=0.99, epsilon=1.0,
                  epsilon_decay=0.995, epsilon_min=0.01, batch_size=64,
                  update_target_every=10):
+        super().__init__(agent_id)
         self.agent_id = agent_id
         self.state_size = state_size
         self.action_size = action_size

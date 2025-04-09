@@ -5,6 +5,7 @@ import matplotlib.animation as animation
 import numpy as np
 import csv
 from matplotlib.widgets import Button
+from matplotlib.animation import FFMpegWriter
 
 # Dictionnaires pour lier le nom des agents à leurs classes
 agent_policy_name_to_class = {
@@ -60,31 +61,37 @@ nb_tests = 3
 nb_agents = 5
 np.random.seed(42)
 
+
 def initialize_agents_and_env():
-    # Initialisation de l'environnement
     env = GameTheoreticEnv(nb_agents=nb_agents, env_type="deterministic", initial_resources=100)
+
+    # Obtenir un état pour déterminer sa taille
+    sample_obs = env.get_observation()
+    state_size = len(sample_obs[0]) if isinstance(sample_obs[0], (list, np.ndarray)) else 1
+    action_size = env.number_actions
 
     # Initialisation des agents
     agents = []
     for agent_idx in range(nb_agents):
         if agent_to_test == "QLearning":
-            agent = QAgent(agent_idx, env, **params_QLearning)
+            agent = QAgent(state_size, action_size, agent_id=agent_idx, **params_QLearning)
         else:
-            agent = DQNAgent(agent_idx, env, **params_DQN)
+            agent = DQNAgent(state_size, action_size, agent_id=agent_idx, **params_DQN)
         agents.append(agent)
 
     return env, agents
+
 
 def run_simulation():
     env, agents = initialize_agents_and_env()
     states_per_step = []
 
-    # Réinitialiser l'environnement
+    # Réinitialiser l'environnement et obtenir l'observation initiale
     obs = env.reset()
     for step in range(MAX_STEPS):
-        # Choisir l'action pour chaque agent
+
         actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
-        # Passer l'action à l'environnement et obtenir les résultats
+
         next_obs, rewards, done, info = env.make_step(actions)
 
         # Capturer l'état de la simulation à chaque étape
@@ -92,16 +99,19 @@ def run_simulation():
             'step': step,
             'resource': env.resource,
             'actions': actions,
-            'emotions': [agent.emotion_level for agent in agents],
+            'emotions': obs,
             'rewards': rewards
         }
         states_per_step.append(state_snapshot)
+
         obs = next_obs
 
         if done:
             break
 
     return states_per_step, env
+
+
 
 def export_to_csv(states_per_step, filename='simulation_data.csv'):
     with open(filename, mode='w', newline='') as csvfile:
@@ -125,72 +135,41 @@ def export_to_csv(states_per_step, filename='simulation_data.csv'):
                 row[f'action_{i}'] = val
             writer.writerow(row)
 
-def animate_simulation(states_per_step, env):
-    fig, ax = plt.subplots(figsize=(12, 8))
+
+def animate_simulation(states_per_step, env, save_path="resource_animation.mp4"):
+    import matplotlib
+    matplotlib.use("Agg")
+
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation, FFMpegWriter
+
+    fig, ax = plt.subplots(figsize=(10, 6))
     plt.subplots_adjust(bottom=0.2)
-    resource_line, = ax.plot([], [], label='Resource', color='green')
-    emotion_lines = []
-    reward_lines = []
-    action_markers = []
 
-    num_agents = len(states_per_step[0]['emotions'])
-
-    for i in range(num_agents):
-        line, = ax.plot([], [], label=f'Agent {i} Emotion')
-        emotion_lines.append(line)
-        reward_line, = ax.plot([], [], label=f'Agent {i} Reward', linestyle='--')
-        reward_lines.append(reward_line)
+    resource_line, = ax.plot([], [], label='Resource Level', color='green', linewidth=2)
 
     ax.set_xlim(0, len(states_per_step))
-    ax.set_ylim(0, 1.2)
+    ax.set_ylim(0, env.initial_resources * 1.1)
     ax.set_xlabel("Step")
-    ax.set_ylabel("Value")
-    ax.set_title("Resource, Agent Emotions, Rewards, and Actions Over Time")
+    ax.set_ylabel("Resource")
+    ax.set_title("Fluctuation of Resource Over Time")
     ax.legend(loc='upper right')
 
     x_data = []
     resource_data = []
-    emotion_data = [[] for _ in range(num_agents)]
-    reward_data = [[] for _ in range(num_agents)]
-
-    paused = [False]
 
     def update(frame):
-        if paused[0]:
-            return []
         step_data = states_per_step[frame]
         x_data.append(step_data['step'])
-        resource_data.append(step_data['resource'] / env.initial_resources)
-
-        for i in range(num_agents):
-            emotion_data[i].append(step_data['emotions'][i])
-            reward_data[i].append(step_data['rewards'][i])
-
+        resource_data.append(step_data['resource'])
         resource_line.set_data(x_data, resource_data)
-        for i in range(num_agents):
-            emotion_lines[i].set_data(x_data, emotion_data[i])
-            reward_lines[i].set_data(x_data, reward_data[i])
+        return [resource_line]
 
-        for marker in action_markers:
-            marker.remove()
-        action_markers.clear()
-        for i, action in enumerate(step_data['actions']):
-            color = 'red' if action == 1 else 'blue'
-            marker_style = '^' if action == 1 else 'o'
-            marker = ax.plot(step_data['step'], 1.05 + i * 0.05, marker_style, color=color)[0]
-            action_markers.append(marker)
+    ani = FuncAnimation(fig, update, frames=len(states_per_step), interval=300, blit=True)
 
-        return [resource_line] + emotion_lines + reward_lines + action_markers
+    writer = FFMpegWriter(fps=3)
+    ani.save(save_path, writer=writer)
 
-    def toggle_pause(event):
-        paused[0] = not paused[0]
-
-    pause_ax = plt.axes([0.45, 0.05, 0.1, 0.075])
-    pause_button = Button(pause_ax, 'Pause/Resume')
-    pause_button.on_clicked(toggle_pause)
-
-    ani = animation.FuncAnimation(fig, update, frames=len(states_per_step), interval=300, blit=True)
-    plt.show()
 
 if __name__ == '__main__':
     states, env = run_simulation()

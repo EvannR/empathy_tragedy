@@ -69,7 +69,6 @@ class GameTheoreticEnv:
         rewards = []
         consumed = 0
 
-        # Met à jour les agents avec les actions choisies
         for i, act in enumerate(actions):
             reward = 0.0
             success = False
@@ -93,7 +92,12 @@ class GameTheoreticEnv:
             rewards[i] += social_rewards[i]
 
         self.update_environment(consumed)
-        return rewards
+
+        next_obs = self.get_observation()
+        done = self.resource <= 0
+        info = {} 
+
+        return next_obs, rewards, done, info
 
     def get_agent_meal_stats(self, agent_idx):
         agent = self.agents[agent_idx]
