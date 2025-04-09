@@ -69,7 +69,6 @@ class ReplayBuffer:
         """échantillonne aléatoirement un batch d'expériences"""
         experiences = random.sample(self.buffer, min(batch_size, len(self.buffer)))
 
-        # extraction des données avec les conversions appropriées
         states = torch.from_numpy(np.vstack([e.state for e in experiences])).float()
         actions = torch.from_numpy(np.vstack([e.action for e in experiences])).long()
         rewards = torch.tensor([[e.reward] for e in experiences], dtype=torch.float)

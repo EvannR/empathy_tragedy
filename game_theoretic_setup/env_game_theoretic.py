@@ -50,17 +50,20 @@ class GameTheoreticEnv:
         self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
 
     def get_observation(self):
-        # Calculer l'état émotionnel de chaque agent (satisfaction personnelle)
+        """
+        Return the observation of each agent : the emotions of others
+        Can be either the average emotionnal state or a vector of emotions
+        """
         emotions = np.array([self.reward_calculator.calculate_personal_satisfaction(agent) for agent in self.agents])
 
-        # Option 1 : Emotion en fonction de la moyenne des émotions des autres agents
+        # Option 1 : Emotion as the average of the other agents
         if self.emotion_type == "average":
             avg_emotion = np.mean(emotions)
             emotions = np.array([avg_emotion] * self.nb_agents)
 
-        # Option 2 : Emotion comme un vecteur
+        # Option 2 : Emotion as vectors
         elif self.emotion_type == "vector":
-            emotions = np.delete(emotions, np.s_[:])  # Si on choisit "vector", inclure tous les scores individuels
+            emotions = np.delete(emotions, np.s_[:])
 
 
         return emotions
