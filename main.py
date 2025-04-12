@@ -1,4 +1,4 @@
-from policies import QAgent, DQNAgent, SocialRewardCalculator
+from agents_policies import QAgent, DQNAgent, SocialRewardCalculator
 from env import RandomizedGridMaze
 import numpy as np
 import matplotlib.pyplot as plt
