@@ -1,133 +1,156 @@
 # empathy_tragedy
 
-#  Simulation Multi-Agent avec tentative d'empathie
+## Multi-Agent Simulation with an Empathy Component
 
-!! attention !! les fichiers du dossier n'apparaissant ici sont des fichiers test ou passés qui ne servent plus à l'éxcution des simulations 
+**!! Warning !!** The files in this folder that are not listed here are either test files or outdated files that are no longer used to run the simulations.
 
-## Vue d'Ensemble
+### Overview
 
-Le projet implémente un système d'apprentissage par renforcement multi-agent (MARL) où plusieurs agents interagissent dans un environnement de type grille pour collecter des ressources. La particularité est que la récompense de chaque agent dépend non seulement de sa propre consommation (satisfaction personnelle) mais aussi de celle des autres agents (empathie). 
+This project implements a multi-agent reinforcement learning (MARL) system in which several agents interact on a grid to collect resources. The key feature is that each agent’s reward depends not only on its own consumption (personal satisfaction) but also on the consumption of other agents (empathy).
 
-L'architecture est modulaire et se compose de plusieurs fichiers:
+The architecture is modular and includes several files:
 
-1. `env.py` - Définit l'environnement
-2. `agents.py` - Définit la structure des agents
-3. `policies.py` - Implémente les algorithmes d'apprentissage (Q-Learning et DQN)
-4. `marl_simulation.py` - Orchestre la simulation
-5. `analyze_results.py` - Analyse et visualise les résultats
+1. `env.py` – Defines the environment  
+2. `agents.py` – Defines agent structures  
+3. `policies.py` – Implements learning algorithms (Q-Learning and DQN)  
+4. `marl_simulation.py` – Orchestrates the simulation  
+5. `analyze_results.py` – Analyzes and visualizes results  
 
-## 1. Environnement (`env.py`)
+---
 
-L'environnement est une grille 2D contenant des agents et des ressources:
+### 1. Environment (`env.py`)
 
-- **`GridMaze`** (classe de base):
-  - Définit une grille de taille configurable
-  - Gère le déplacement des agents (UP, DOWN, LEFT, RIGHT, EXPLOIT)
-  - Suit les positions des agents et les récompenses
+The environment is a 2D grid containing agents and resources:
 
-- **`RandomizedGridMaze`** (classe dérivée):
-  - Ajoute des ressources aléatoires dans la grille
-  - Configure le comportement des ressources (apparition, consommation)
-  - Permet de choisir si les ressources sont consommées automatiquement ou seulement via l'action EXPLOIT
+- **`GridMaze`** (base class):  
+  - Defines a grid with configurable size  
+  - Manages agent movement (UP, DOWN, LEFT, RIGHT, EXPLOIT)  
+  - Tracks agent positions and rewards  
 
-L'environnement maintient l'état du système à chaque pas de temps et peut être réinitialisé pour un nouvel épisode.
+- **`RandomizedGridMaze`** (derived class):  
+  - Randomly places resources in the grid  
+  - Configures resource behavior (spawning, consumption)  
+  - Allows choosing whether resources are automatically consumed or only via the EXPLOIT action  
 
-## 2. Agents (`agents.py`)
+The environment maintains the state of the system at each timestep and can be reset for a new episode.
 
-La classe `Agent` encapsule les caractéristiques et comportements fondamentaux des agents:
+---
 
-- Stocke la position courante de l'agent
-- Maintient un historique des repas sous forme d'une file circulaire (`deque`)
-- Compte le nombre total de repas
-- Fournit des méthodes pour enregistrer de nouveaux repas et calculer des statistiques
+### 2. Agents (`agents.py`)
 
-Chaque agent peut avoir une capacité de mémoire différente, ce qui affecte la longueur de son historique de repas.
+The `Agent` class encapsulates fundamental features and behaviors of the agents:
 
-## 3. Politiques d'Apprentissage (`policies.py`)
+- Stores the agent’s current position  
+- Keeps a circular buffer (`deque`) for a meal history  
+- Tracks the total number of meals  
+- Provides methods for recording new meals and computing statistics  
 
-Ce fichier contient les algorithmes d'apprentissage par renforcement:
+Each agent can have a different memory capacity, affecting the length of its meal history.
 
-- **`QAgent`**: Implémentation du Q-Learning classique
-  - Utilise une table pour stocker les valeurs Q
-  - Utilise une politique epsilon-greedy pour l'exploration/exploitation
-  - Met à jour les valeurs Q basées sur l'équation de Bellman
+---
 
-- **`DQNAgent`**: Implémentation du Deep Q-Network
-  - Utilise des réseaux de neurones pour approximer la fonction Q
-  - Implémente un buffer de replay pour l'apprentissage par lots
-  - Utilise un réseau cible pour stabiliser l'apprentissage
+### 3. Learning Policies (`policies.py`)
 
-- **`EmotionalModel`** et **`SocialRewardCalculator`**: 
-  - Calculent les récompenses basées sur l'empathie
-  - Pondèrent entre la satisfaction personnelle et celle des autres agents
-  - Prennent en compte l'historique des repas et le dernier repas
+This file contains the reinforcement learning algorithms:
 
-- **`ReplayBuffer`**: 
-  - Stocke les expériences (état, action, récompense, état suivant, terminal)
-  - Échantillonne des lots d'expériences pour l'apprentissage
+- **`QAgent`**: Classic Q-Learning implementation  
+  - Uses a table to store Q-values  
+  - Employs an epsilon-greedy policy for exploration and exploitation  
+  - Updates Q-values based on the Bellman equation  
 
-## 4. Simulation Principale (`marl_simulation.py`)
+- **`DQNAgent`**: Deep Q-Network implementation  
+  - Uses neural networks to approximate the Q-function  
+  - Utilizes a replay buffer for batch learning  
+  - Employs a target network to stabilize learning  
 
-Ce fichier orchestre tout le processus d'apprentissage:
+- **`EmotionalModel`** and **`SocialRewardCalculator`**:  
+  - Compute rewards based on empathy  
+  - Balance personal satisfaction with that of other agents  
+  - Factor in meal history and the most recent meal  
 
-- Initialise l'environnement et les agents
-- Crée des agents RL (Q-Learning ou DQN) selon le choix de l'algorithme
-- Exécute des épisodes complets avec les étapes:
-  1. Réinitialisation de l'environnement
-  2. Sélection d'actions par les agents
-  3. Exécution des actions dans l'environnement
-  4. Calcul des récompenses sociales en fin d'épisode
-  5. Apprentissage des agents
-- Collecte des statistiques pour analyse
-- Visualise l'environnement et les performances des agents
+- **`ReplayBuffer`**:  
+  - Stores experiences (state, action, reward, next state, terminal)  
+  - Samples mini-batches of experiences for learning  
 
-La méthode `get_state_representation` convertit l'état de la grille en une représentation adaptée à l'apprentissage par renforcement: position normalisée de l'agent et informations sur les ressources environnantes.
+---
 
-## 5. Analyse des Résultats (`analyze_results.py`)
+### 4. Main Simulation (`marl_simulation.py`)
 
-Ce fichier fournit des outils pour:
-- Exécuter des expériences avec différentes configurations (algorithmes, paramètres)
-- Visualiser les courbes d'apprentissage
-- Analyser la convergence des différents algorithmes
-- Comparer les performances en termes de bien-être social et de récompenses individuelles
+This file orchestrates the entire learning process:
 
-## Aspects Techniques Clés
+1. Initializes the environment and agents  
+2. Creates RL agents (Q-Learning or DQN) according to the chosen algorithm  
+3. Runs complete episodes by:  
+   - Resetting the environment  
+   - Having agents select actions  
+   - Executing actions in the environment  
+   - Computing social rewards at the end of each episode  
+   - Training the agents  
+4. Collects statistics for analysis  
+5. Visualizes the environment and agent performance  
 
-### 1. Représentation d'État
+The method `get_state_representation` converts the grid state into a format suitable for reinforcement learning—normalized agent positions and nearby resource information.
 
-Les états sont représentés comme des vecteurs de caractéristiques incluant:
-- Position normalisée de l'agent (i, j divisés par la taille de la grille)
-- Valeurs des ressources dans les 8 directions autour de l'agent
+---
 
-### 2. Modèle d'Empathie
+### 5. Results Analysis (`analyze_results.py`)
 
-Le modèle d'empathie est paramétré par deux coefficients:
-- `alpha`: Équilibre entre satisfaction personnelle (1.0) et empathie (0.0)
-- `beta`: Pondération entre le dernier repas et l'historique complet
+This file provides tools to:
 
-### 3. Système de Récompense
+- Run experiments with various configurations (algorithms, parameters)  
+- Visualize learning curves  
+- Analyze the convergence of different algorithms  
+- Compare performance in terms of social welfare and individual rewards  
 
-À la fin de chaque épisode, la récompense finale comprend:
-- Satisfaction personnelle = `beta` × (dernier repas) + (1-`beta`) × (moyenne de l'historique)
-- Récompense émotionnelle = `alpha` × (satisfaction personnelle) + (1-`alpha`) × (moyenne des satisfactions des autres)
+---
 
-### 4. Gestion des Erreurs et Débogage
+## Key Technical Aspects
 
-Le code inclut un système robuste de gestion des erreurs pour:
-- Tracer les problèmes liés aux types de données et aux conversions
-- Afficher des informations détaillées sur les états, actions et récompenses
-- Continuer l'apprentissage même en cas d'erreur dans un épisode
+### 1. State Representation
 
-## Paramétrisation et Flexibilité
+States are represented as feature vectors that include:
+- The agent’s normalized position (i and j divided by the grid size)  
+- Resource values in the eight directions around the agent  
 
-Le système est hautement configurable:
-- Taille de l'environnement
-- Nombre d'agents
-- Densité et dynamique des ressources
-- Algorithme d'apprentissage (Q-Learning vs DQN)
-- Paramètres d'empathie (alpha, beta)
-- Hyperparamètres d'apprentissage (taux d'apprentissage, facteur d'actualisation, exploration)
+### 2. Empathy Model
 
-Cette flexibilité permet de tester diverses hypothèses et configurations pour trouver les combinaisons optimales pour votre recherche MARL.
+The empathy model is parameterized by two coefficients:
+- `alpha`: Balances personal satisfaction (1.0) and empathy (0.0)  
+- `beta`: Balances the most recent meal against the full meal history  
+
+### 3. Reward System
+
+At the end of each episode, the final reward includes:
+- **Personal satisfaction**:  
+  \[
+  \beta \times (\text{last meal}) + (1 - \beta) \times (\text{average over the meal history})
+  \]
+- **Emotional reward**:  
+  \[
+  \alpha \times (\text{personal satisfaction}) + (1 - \alpha) \times (\text{average satisfaction of other agents})
+  \]
+
+### 4. Error Handling and Debugging
+
+The code features a robust error-handling system:
+- Traces issues related to data types and conversions  
+- Displays detailed information about states, actions, and rewards  
+- Continues learning even if an error occurs during an episode  
+
+---
+
+## Parameterization and Flexibility
+
+The system is highly configurable:
+- Grid size  
+- Number of agents  
+- Resource density and dynamics  
+- Learning algorithm (Q-Learning vs. DQN)  
+- Empathy parameters (`alpha`, `beta`)  
+- Learning hyperparameters (learning rate, discount factor, exploration)  
+
+This flexibility allows for testing different hypotheses and configurations to find the optimal setups for MARL research.
+
+---
 
 ## Conclusion
