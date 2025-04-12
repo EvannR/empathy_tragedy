@@ -27,7 +27,7 @@ class Agent:
     def update_position(self, new_position):
         self.position = new_position
 
-    def get_state(self, env):
+    def get_state(self, env): # Get the state representation for the agent
         pos_i, pos_j = self.position
         state = np.zeros(10, dtype=np.float32)
         state[0] = pos_i / env.size
