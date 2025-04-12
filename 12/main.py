@@ -24,16 +24,16 @@ emotions_params = {
 params_QLearning = {
     "learning_rate": 0.1,
     "gamma": 0.99,
-    "epsilon": 1.0,
-    "epsilon_decay": 0.995,
+    "epsilon": 0.8,
+    "epsilon_decay": 0.9,
     "epsilon_min": 0.01
 }
 
 params_DQN = {
-    "learning_rate": 0.001,
+    "learning_rate": 0.01,
     "gamma": 0.99,
-    "epsilon": 1.0,
-    "epsilon_decay": 0.995,
+    "epsilon": 0.8,
+    "epsilon_decay": 0.9,
     "epsilon_min": 0.01,
     "batch_size": 16,
     "hidden_size": 64,
@@ -47,7 +47,7 @@ agent_params = {
 
 agent_to_test = "DQN"
 env_to_test = "random_Maze"
-empathy_to_test = "balanced"
+empathy_to_test = "high_empathy"
 
 episodes = 50
 steps = 30
@@ -76,13 +76,14 @@ def run_single_test(agent_class, env_class, agent_config, env_config, emotion_co
             initial_state = env.agents[idx].get_state(env)
             rl_agent.start_episode(initial_state)
 
-        episode_reward = 0
+        episode_reward = 0  # récompense immédiate cumulée pendant les steps
 
         for step in range(steps):
             for idx, rl_agent in enumerate(rl_agents):
                 current_state = env.agents[idx].get_state(env)
                 action = rl_agent.select_action(current_state)
                 immediate_reward, _ = env.make_step(idx, action)
+                episode_reward += immediate_reward
                 next_state = env.agents[idx].get_state(env)
 
                 if agent_to_test == "DQN":
@@ -96,7 +97,7 @@ def run_single_test(agent_class, env_class, agent_config, env_config, emotion_co
         for idx, rl_agent in enumerate(rl_agents):
             final_state = env.agents[idx].get_state(env)
             social_reward = social_rewards[idx]
-            episode_reward += social_reward
+            # on ne cumule plus les récompenses sociales dans episode_reward
 
             if agent_to_test == "DQN":
                 rl_agent.step(final_state, social_reward, True)

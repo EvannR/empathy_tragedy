@@ -121,9 +121,9 @@ class GridMaze:
 
 
 class RandomizedGridMaze(GridMaze):
-    def __init__(self, size=4, nb_agents=1, agent_configs=None, reward_density=0.2, 
-                 respawn_prob=0.1, simple_mode=False, auto_consume=True, 
-                 exploit_only=False):
+    def __init__(self, size=4, nb_agents=1, agent_configs=None, reward_density=0.4, 
+                 respawn_prob=0.1, simple_mode=False, auto_consume=False, 
+                 exploit_only=True):
         super().__init__(size, nb_agents, agent_configs)
         self.reward_density = reward_density
         self.respawn_prob = respawn_prob

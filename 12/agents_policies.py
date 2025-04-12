@@ -110,6 +110,8 @@ class QAgent:
         next_q_values = self.get_q_values(next_state) if not done else np.zeros(self.action_size)
         target = reward + self.gamma * np.max(next_q_values)
         q_values[action] += self.learning_rate * (target - q_values[action])
+        old_value = q_values[action]
+        print(f"Q-update: State={state_key}, Action={action}, Old={old_value:.4f}, New={q_values[action]:.4f}, Reward={reward:.4f}")
         self.q_table[state_key] = q_values
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
