@@ -161,7 +161,7 @@ def plot_resource_evolution(states_per_step, env, save_path="resource_evolution.
     plt.plot(steps, resources, label='Level of ressources', color='green', linewidth=2)
     plt.xlabel("Step")
     plt.ylabel("Ressource")
-    plt.title("Fluctuation of ressources in the environment")
+    plt.title(f"Fluctuation of ressources in the environment for agent: {agent_to_test} with empathy level: {empathy_to_test}")
     plt.ylim(0, env.initial_resources * 1.1)
     plt.grid(True)
     plt.legend()
