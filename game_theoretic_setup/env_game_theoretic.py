@@ -67,7 +67,6 @@ class GameTheoreticEnv:
         elif self.emotion_type == "vector":
             emotions = np.delete(emotions, np.s_[:])
 
-
         return emotions
 
     def make_step(self, actions):

@@ -2,9 +2,7 @@ from env_game_theoretic import GameTheoreticEnv
 from agent_policies_game_theoretic import QAgent, DQNAgent
 import numpy as np
 import csv
-import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation, FFMpegWriter
 
 ###########################################################################################################
 agent_policy_name_to_class = {
@@ -59,20 +57,21 @@ empathy_to_test = "balanced"
 ###########################################################################################################
 # Parameter of the episodes
 episodes = 50
-MAX_STEPS = 30
+MAX_STEPS = 1000
 nb_tests = 3
 nb_agents = 5
+initial_amount_ressources = 2000
+environnement_type = "stochastic"  # can be deterministic or stochastic
 np.random.seed(42)
 
 
 def initialize_agents_and_env():
     """
     Initialize a new environnement
-    
     """
     env = GameTheoreticEnv(nb_agents=nb_agents, 
-                           env_type="deterministic",
-                           initial_resources=100,
+                           env_type=environnement_type,
+                           initial_resources=initial_amount_ressources,
                            emotion_type=emotion_type)
 
     sample_obs = env.get_observation()
@@ -128,7 +127,6 @@ def run_simulation():
 def export_to_csv(states_per_step, filename='simulation_data.csv'):
     """
     Function used to create the data for each simulation
-    
     """
     with open(filename, mode='w', newline='') as csvfile:
         fieldnames = ['step', 'resource'] + \
@@ -152,43 +150,27 @@ def export_to_csv(states_per_step, filename='simulation_data.csv'):
             writer.writerow(row)
 
 
-def animate_simulation(states_per_step, env, save_path="resource_animation.mp4"):
+def plot_resource_evolution(states_per_step, env, save_path="resource_evolution.png"):
     """
-    Function used to visualize an episode, not yet functionnal
+    Generate a static image to visualize the evolution of the ressources
     """
-    matplotlib.use("Agg")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    plt.subplots_adjust(bottom=0.2)
+    steps = [step['step'] for step in states_per_step]
+    resources = [step['resource'] for step in states_per_step]
 
-    resource_line, = ax.plot([], [], 
-                             label='Resource Level', 
-                             color='green', 
-                             linewidth=2)
-
-    ax.set_xlim(0, len(states_per_step))
-    ax.set_ylim(0, env.initial_resources * 1.1)
-    ax.set_xlabel("Step")
-    ax.set_ylabel("Resource")
-    ax.set_title("Fluctuation of Resource Over Time")
-    ax.legend(loc='upper right')
-
-    x_data = []
-    resource_data = []
-
-    def update(frame):
-        step_data = states_per_step[frame]
-        x_data.append(step_data['step'])
-        resource_data.append(step_data['resource'])
-        resource_line.set_data(x_data, resource_data)
-        return [resource_line]
-
-    ani = FuncAnimation(fig, update, frames=len(states_per_step), interval=300, blit=True)
-
-    writer = FFMpegWriter(fps=3)
-    ani.save(save_path, writer=writer)
+    plt.figure(figsize=(10, 6))
+    plt.plot(steps, resources, label='Level of ressources', color='green', linewidth=2)
+    plt.xlabel("Step")
+    plt.ylabel("Ressource")
+    plt.title("Fluctuation of ressources in the environment")
+    plt.ylim(0, env.initial_resources * 1.1)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
 
 
 if __name__ == '__main__':
     states, env = run_simulation()
     export_to_csv(states)
-    animate_simulation(states, env)
+    plot_resource_evolution(states, env)
