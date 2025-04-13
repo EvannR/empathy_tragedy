@@ -6,28 +6,27 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 
-# parameter type of emotional observation : average or vector
-emotion_type = "average" 
-
-# Dictionnaires pour lier le nom des agents à leurs classes
+###########################################################################################################
 agent_policy_name_to_class = {
     "QLearning": QAgent,
     "DQN": DQNAgent
 }
 
-# Dictionnaire pour lier le nom de l'environnement à sa classe
 env_name_to_class = {
     "game_theoretic": GameTheoreticEnv  # Utilisation de GameTheoreticEnv
 }
 
-# Paramètres des émotions
 emotions_params = {
     "high_empathy": {"alpha": 0.3, "beta": 0.7},
     "balanced": {"alpha": 0.5, "beta": 0.5},
     "low_empathy": {"alpha": 0.8, "beta": 0.7}
 }
 
-# Parameter of the agent
+
+###########################################################################################################
+# Parameter for the agents
+emotion_type = "average" # can be : "high_empathy", "balanced" or "low_empathy"
+
 params_QLearning = {
     "learning_rate": 0.1,
     "gamma": 0.99,
@@ -56,6 +55,8 @@ agent_params = {
 agent_to_test = "DQN"
 empathy_to_test = "balanced"
 
+
+###########################################################################################################
 # Parameter of the episodes
 episodes = 50
 MAX_STEPS = 30
