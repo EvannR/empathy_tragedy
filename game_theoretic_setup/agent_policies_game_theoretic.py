@@ -17,17 +17,17 @@ class Agent:
         self.total_meals = 0
 
     def record_meal(self, has_eaten, reward_value=0):
-        """Enregistre si l'agent a mangé (1) ou non (0) à ce tour"""
+        """Register whether the agent has eater this turn (1) or not (0) at this step"""
         self.meal_history.append(1 if has_eaten else 0)
         if has_eaten:
             self.total_meals += 1
 
     def get_recent_meals(self):
-        """Retourne le nombre de reward dans l'historique"""
+        """Sends the reward in the historic"""
         return sum(self.meal_history)
 
     def reset(self):
-        """Réinitialise l'état de l'agent pour un nouvel épisode"""
+        """Reseting the agent for a new episode"""
         self.state = self.env.reset()
         self.meal_history = deque([0] * self.memory_size, maxlen=self.memory_size)
         self.total_meals = 0
@@ -41,13 +41,12 @@ Experience = namedtuple('Experience', ['state',
 
 
 class ReplayBuffer:
-    """mémoire d'expériences pour le DQN"""
+    """Memory for the DQN"""
     def __init__(self, capacity=10000):
         self.buffer = deque(maxlen=capacity)
 
     def add(self, state, action, reward, next_state, done):
-        """ajoute une expérience à la mémoire"""
-        # convertir l'action en int et s'assurer qu'elle est dans un format compatible
+        """Add an experience to the buffer"""
         if isinstance(action, (list, tuple)):
             action = np.array([action[0]], dtype=np.int64)
         elif isinstance(action, np.ndarray):
@@ -55,7 +54,6 @@ class ReplayBuffer:
         else:
             action = np.array([int(action)], dtype=np.int64)
 
-        # conversion des autres données en format approprié
         state = np.array(state, dtype=np.float32)
         if not isinstance(reward, (int, float)):
             reward = float(reward)
@@ -66,7 +64,7 @@ class ReplayBuffer:
         self.buffer.append(Experience(state, action, reward, next_state, done))
 
     def sample(self, batch_size):
-        """échantillonne aléatoirement un batch d'expériences"""
+        """Sample in the batch"""
         experiences = random.sample(self.buffer, min(batch_size, len(self.buffer)))
 
         states = torch.from_numpy(np.vstack([e.state for e in experiences])).float()
@@ -82,7 +80,6 @@ class ReplayBuffer:
 
 
 class QAgent:
-    """agent utilisant l'algorithme Q-Learning"""
     def __init__(self, state_size, action_size, agent_id=0, learning_rate=0.1,
                  gamma=0.99, epsilon=1.0, epsilon_decay=0.995,
                  epsilon_min=0.01):
@@ -90,45 +87,38 @@ class QAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.learning_rate = learning_rate
-        self.gamma = gamma  # facteur d'actualisation
-        self.epsilon = epsilon  # paramètre d'exploration
+        self.gamma = gamma
+        self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
 
-        # table Q-values : mapping état -> valeurs d'action
         self.q_table = {}
 
-        # état courant et action précédente
         self.current_state = None
         self.previous_action = None
 
     def get_state_key(self, state):
-        """convertit un état en clé hashable pour la table Q"""
-        # exemple simple : concatenation des valeurs
+        """Convert the state for the Q-table """
         if isinstance(state, np.ndarray):
             return tuple(state.flatten())
         return tuple(state)
 
     def get_q_values(self, state):
-        """récupère les valeurs Q pour un état donné"""
+        """obtains the q values for a given agent and state"""
         state_key = self.get_state_key(state)
         if state_key not in self.q_table:
-            # initialisation des valeurs Q à zéro pour un nouvel état
             self.q_table[state_key] = np.zeros(self.action_size)
         return self.q_table[state_key]
 
     def select_action(self, state):
         """sélectionne une action selon la politique epsilon-greedy"""
         if np.random.random() < self.epsilon:
-            # exploration : action aléatoire
             return int(np.random.choice(self.action_size))
-
-        # exploitation : meilleure action selon les valeurs Q
         q_values = self.get_q_values(state)
         return int(np.argmax(q_values))
 
     def learn(self, state, action, reward, next_state, done):
-        """met à jour la table Q en fonction de l'expérience"""
+        """Update of the Q-table"""
         state_key = self.get_state_key(state)
         next_state_key = self.get_state_key(next_state)
 
@@ -143,12 +133,12 @@ class QAgent:
             self.epsilon *= self.epsilon_decay
 
     def start_episode(self, state):
-        """initialise l'état au début d'un épisode"""
+        """Initialize a new simulation"""
         self.current_state = state
         self.previous_action = None
 
     def step(self, next_state, reward, done):
-        """effectue une étape d'apprentissage"""
+        """Initiate a new step in a simulation"""
         if self.current_state is not None and self.previous_action is not None:
             self.learn(self.current_state, self.previous_action, reward, next_state, done)
 
@@ -204,7 +194,7 @@ class DQNAgent(Agent):
         self.meal_history = []
 
     def select_action(self, state):
-        """sélectionne une action selon la politique epsilon-greedy"""
+        """Select and action according to epsilon-greedy"""
         if np.random.random() < self.epsilon:
             return int(np.random.choice(self.action_size))
 
@@ -220,7 +210,7 @@ class DQNAgent(Agent):
         return int(np.argmax(action_values.cpu().data.numpy()))
 
     def learn(self, experiences):
-        """apprentissage à partir d'un batch d'expériences"""
+        """Learn from experience"""
         states, actions, rewards, next_states, dones = experiences
 
         try:
@@ -242,7 +232,7 @@ class DQNAgent(Agent):
             raise
 
     def remember(self, state, action, reward, next_state, done):
-        """stocke une expérience dans la mémoire"""
+        """Stock the experience in memory"""
         if not isinstance(state, np.ndarray):
             state = np.array(state, dtype=np.float32)
 
@@ -262,7 +252,7 @@ class DQNAgent(Agent):
         self.memory.add(state, action, reward, next_state, done)
 
     def step(self, next_state, reward, done):
-        """effectue une étape d'apprentissage"""
+        """Make a new step in the simulation"""
         if not isinstance(next_state, np.ndarray):
             next_state = np.array(next_state, dtype=np.float32)
 
@@ -286,28 +276,25 @@ class DQNAgent(Agent):
         return action
 
     def start_episode(self, state):
-        """initialise l'état au début d'un épisode"""
+        """Make a new episode by initiating variables"""
         self.current_state = state
         self.previous_action = None
 
 
 class SocialRewardCalculator:
     """
-    classe pour calculer les récompenses sociales basées sur la consommation
-    et l'empathie entre agents
+    Calculate the reward on the basis of the others agent emotions and how empathic is the agent
     """
     def __init__(self, nb_agents, alpha=0.5, beta=0.5):
         """
-        initialise le calculateur de récompense sociale
-
         parameters:
         -----------
         nb_agents : int
-            nombre d'agents dans l'environnement
+            number of agents in the environnement
         alpha : float
-            pondération entre la satisfaction personnelle et l'empathie (0-1)
+            how much they value others emotions (0-1)
         beta : float
-            pondération du dernier repas par rapport à l'historique (0-1)
+            value of the last meal (0-1)
         """
         self.nb_agents = nb_agents
         self.alpha = alpha  # balance entre soi et les autres
@@ -315,45 +302,42 @@ class SocialRewardCalculator:
 
     def calculate_personal_satisfaction(self, agent):
         """
-        calcule la satisfaction personnelle d'un agent basée sur son historique de repas
-
+        Calculate the emotion of the agent.
         parameters:
         -----------
-        agent : Agent
-            l'agent dont on calcule la satisfaction
+        agent : Agent from which we compute the satisfaction
 
         returns:
         --------
         float
-            score de satisfaction personnelle
+            emotion of the agent
         """
 
         if len(agent.meal_history) > 0:
             last_meal = 1 if agent.meal_history[-1] > 0 else 0
             history_weight = sum(agent.meal_history) / len(agent.meal_history)
         else:
-            # Si meal_history est vide, définir des valeurs par défaut
-            last_meal = 0  # Valeur par défaut pour le dernier repas
-            history_weight = 0  # Valeur par défaut pour le poids de l'historique
+            # define value if no values in the history
+            last_meal = 0
+            history_weight = 0
 
-        # Calcul de la satisfaction personnelle
         satisfaction = self.beta * last_meal + (1 - self.beta) * history_weight
 
         return satisfaction
 
     def calculate_rewards(self, agents):
         """
-        calcule les récompenses émotionnelles pour tous les agents
+        Compute the emotionnal reward for each agent
 
         parameters:
         -----------
         agents : list
-            liste des agents
+            list of agents
 
         returns:
         --------
         list
-            liste des récompenses pour chaque agent
+            list of rewards
         """
         personal_satisfactions = [self.calculate_personal_satisfaction(agent) for agent in agents]
 

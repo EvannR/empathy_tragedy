@@ -1,11 +1,13 @@
 from env_game_theoretic import GameTheoreticEnv
 from agent_policies_game_theoretic import QAgent, DQNAgent
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 import numpy as np
 import csv
-from matplotlib.widgets import Button
-from matplotlib.animation import FFMpegWriter
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation, FFMpegWriter
+
+# parameter type of emotional observation : average or vector
+emotion_type = "average" 
 
 # Dictionnaires pour lier le nom des agents à leurs classes
 agent_policy_name_to_class = {
@@ -25,7 +27,7 @@ emotions_params = {
     "low_empathy": {"alpha": 0.8, "beta": 0.7}
 }
 
-# Paramètres des agents
+# Parameter of the agent
 params_QLearning = {
     "learning_rate": 0.1,
     "gamma": 0.99,
@@ -50,11 +52,11 @@ agent_params = {
     "DQN": params_DQN
 }
 
-# Choix de l'agent et de l'empathie
+# Choice of the agent and level of empathy
 agent_to_test = "DQN"
 empathy_to_test = "balanced"
 
-# Nombre d'épisodes, d'étapes et de tests
+# Parameter of the episodes
 episodes = 50
 MAX_STEPS = 30
 nb_tests = 3
@@ -63,20 +65,31 @@ np.random.seed(42)
 
 
 def initialize_agents_and_env():
-    env = GameTheoreticEnv(nb_agents=nb_agents, env_type="deterministic", initial_resources=100)
+    """
+    Initialize a new environnement
+    
+    """
+    env = GameTheoreticEnv(nb_agents=nb_agents, 
+                           env_type="deterministic",
+                           initial_resources=100,
+                           emotion_type=emotion_type)
 
-    # Obtenir un état pour déterminer sa taille
     sample_obs = env.get_observation()
-    state_size = len(sample_obs[0]) if isinstance(sample_obs[0], (list, np.ndarray)) else 1
+    state_size = len(sample_obs[0]) if isinstance(sample_obs[0], 
+                                                  (list, np.ndarray)) else 1
     action_size = env.number_actions
 
-    # Initialisation des agents
     agents = []
     for agent_idx in range(nb_agents):
         if agent_to_test == "QLearning":
-            agent = QAgent(state_size, action_size, agent_id=agent_idx, **params_QLearning)
+            agent = QAgent(state_size, action_size, 
+                           agent_id=agent_idx,
+                           **params_QLearning)
         else:
-            agent = DQNAgent(state_size, action_size, agent_id=agent_idx, **params_DQN)
+            agent = DQNAgent(state_size, 
+                             action_size, 
+                             agent_id=agent_idx, 
+                             **params_DQN)
         agents.append(agent)
 
     return env, agents
@@ -86,7 +99,7 @@ def run_simulation():
     env, agents = initialize_agents_and_env()
     states_per_step = []
 
-    # Réinitialiser l'environnement et obtenir l'observation initiale
+    # Initialize the environnement
     obs = env.reset()
     for step in range(MAX_STEPS):
 
@@ -94,7 +107,6 @@ def run_simulation():
 
         next_obs, rewards, done, info = env.make_step(actions)
 
-        # Capturer l'état de la simulation à chaque étape
         state_snapshot = {
             'step': step,
             'resource': env.resource,
@@ -112,8 +124,11 @@ def run_simulation():
     return states_per_step, env
 
 
-
 def export_to_csv(states_per_step, filename='simulation_data.csv'):
+    """
+    Function used to create the data for each simulation
+    
+    """
     with open(filename, mode='w', newline='') as csvfile:
         fieldnames = ['step', 'resource'] + \
                      [f'emotion_{i}' for i in range(len(states_per_step[0]['emotions']))] + \
@@ -137,16 +152,17 @@ def export_to_csv(states_per_step, filename='simulation_data.csv'):
 
 
 def animate_simulation(states_per_step, env, save_path="resource_animation.mp4"):
-    import matplotlib
+    """
+    Function used to visualize an episode, not yet functionnal
+    """
     matplotlib.use("Agg")
-
-    import matplotlib.pyplot as plt
-    from matplotlib.animation import FuncAnimation, FFMpegWriter
-
     fig, ax = plt.subplots(figsize=(10, 6))
     plt.subplots_adjust(bottom=0.2)
 
-    resource_line, = ax.plot([], [], label='Resource Level', color='green', linewidth=2)
+    resource_line, = ax.plot([], [], 
+                             label='Resource Level', 
+                             color='green', 
+                             linewidth=2)
 
     ax.set_xlim(0, len(states_per_step))
     ax.set_ylim(0, env.initial_resources * 1.1)

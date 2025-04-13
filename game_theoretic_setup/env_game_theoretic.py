@@ -9,7 +9,7 @@ class GameTheoreticEnv:
                  initial_resources=100,
                  regen_rate=1.0,
                  env_type="deterministic",
-                 emotion_type="average"):  # emotion_type peut être "average" ou "vector"
+                 emotion_type="average"):  # emotion_type can be "average" or "vector"
         self.size = size
         self.nb_agents = nb_agents
         self.number_actions = 2  # 0: Not Exploit, 1: Exploit
@@ -18,7 +18,7 @@ class GameTheoreticEnv:
 
         self.initial_resources = initial_resources
         self.regen_rate = regen_rate
-        self.env_type = env_type  # "deterministic" ou "stochastic"
+        self.env_type = env_type  # "deterministic" or "stochastic"
         self.emotion_type = emotion_type  # "average" ou "vector"
 
         self.init_agents()
@@ -28,17 +28,19 @@ class GameTheoreticEnv:
     def init_agents(self):
         self.agents = []
         for i, config in enumerate(self.agent_configs):
-            # L'agent peut être soit un QAgent, soit un DQNAgent
-            agent = DQNAgent(state_size=4, action_size=self.number_actions, agent_id=i, **config)
+            agent = DQNAgent(state_size=4,
+                             action_size=self.number_actions,
+                             agent_id=i,
+                             **config)
             self.agents.append(agent)
 
     def reset(self):
-        # Réinitialiser l'état de l'environnement
-        self.resource = 100  # Par exemple, réinitialiser la ressource
-        self.agents = []  # Réinitialiser la liste des agents
-        self.init_agents()  # Réinitialiser les agents
+        """ reinitialize the environnement for a new episode"""
+        self.resource = self.initial_resources
+        self.agents = []
+        self.init_agents()
         return self.get_observation()
-    
+
     def new_episode(self):
         self.time_step = 0
         self.resource = self.initial_resources
