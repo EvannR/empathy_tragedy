@@ -174,19 +174,27 @@ def plot_resource_evolution(states_per_step, env, save_path="resource_evolution.
     plt.savefig(save_path)
     plt.close()
 
-def export_general_metric_episode(input_file, output_file):
-    equality_gini_ceeficient = gini_calculator(input_file)
+def export_general_metric_episode(input_file, output_file, episode_number):
+    equality_gini_ceoficient = gini_calculator(input_file) # measure of fairness
+    social_welfare = social_welfare_calculator(input_file) # sum of marginal gain
+    sustainability = sustainability_calculator(input_file) # average rate of the decision to take a ressource
 
-    social_welfare = ... # sum of marginal gain
+    fieldnames = ['episode_number', 'equality_gini_ceoficient', 'social_welfare', 'sustainability']
 
-    sustainability = ... # average rate of the decision to take a ressource
+    new_line = [episode_number, equality_gini_ceoficient, social_welfare, sustainability]
+
+    with open(output_file, mode='a', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, filednames=fieldnames)
+        writer.writerows(new_line)
 
 
 def gini_calculator(data_file):
     ...
 
+
 def social_welfare_calculator(data_file):
     ...
+
 
 def sustainability_calculator(data_file):
     ...
@@ -199,4 +207,4 @@ if __name__ == '__main__':
                                    filename=f'{episode}_simulation_data.csv')
         plot_resource_evolution(states,
                                 env)
-        export_general_metric_episode(filename, output_file=f'{}') #à définir
+        # export_general_metric_episode(filename, output_file=f'{}', episode_number=episode) #à définir
