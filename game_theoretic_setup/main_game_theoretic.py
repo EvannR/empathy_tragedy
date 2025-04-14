@@ -5,6 +5,7 @@ import csv
 import matplotlib.pyplot as plt
 
 ###########################################################################################################
+# General parameter
 agent_policy_name_to_class = {
     "QLearning": QAgent,
     "DQN": DQNAgent
@@ -19,7 +20,6 @@ emotions_params = {
     "balanced": {"alpha": 0.5, "beta": 0.5},
     "low_empathy": {"alpha": 0.8, "beta": 0.7}
 }
-
 
 ###########################################################################################################
 # Parameter for the agents
@@ -63,6 +63,8 @@ nb_agents = 5
 initial_amount_ressources = 2000
 environnement_type = "stochastic"  # can be deterministic or stochastic
 np.random.seed(42)
+###########################################################################################################
+
 
 
 def initialize_agents_and_env():
@@ -124,7 +126,7 @@ def run_simulation():
     return states_per_step, env
 
 
-def export_to_csv(states_per_step, filename='simulation_data.csv'):
+def export_to_csv_episode_data(states_per_step, filename=f'simulation_data.csv'):
     """
     Function used to create the data for each simulation
     """
@@ -149,6 +151,9 @@ def export_to_csv(states_per_step, filename='simulation_data.csv'):
                 row[f'action_{i}'] = val
             writer.writerow(row)
 
+    
+    return filename
+
 
 def plot_resource_evolution(states_per_step, env, save_path="resource_evolution.png"):
     """
@@ -169,8 +174,29 @@ def plot_resource_evolution(states_per_step, env, save_path="resource_evolution.
     plt.savefig(save_path)
     plt.close()
 
+def export_general_metric_episode(input_file, output_file):
+    equality_gini_ceeficient = gini_calculator(input_file)
+
+    social_welfare = ... # sum of marginal gain
+
+    sustainability = ... # average rate of the decision to take a ressource
+
+
+def gini_calculator(data_file):
+    ...
+
+def social_welfare_calculator(data_file):
+    ...
+
+def sustainability_calculator(data_file):
+    ...
+
 
 if __name__ == '__main__':
-    states, env = run_simulation()
-    export_to_csv(states)
-    plot_resource_evolution(states, env)
+    for episode in nb_tests:
+        states, env = run_simulation()
+        filename = export_to_csv_episode_data(states,
+                                   filename=f'{episode}_simulation_data.csv')
+        plot_resource_evolution(states,
+                                env)
+        export_general_metric_episode(filename, output_file=f'{}') #à définir
