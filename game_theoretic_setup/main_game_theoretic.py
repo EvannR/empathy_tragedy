@@ -50,13 +50,13 @@ agent_params = {
 }
 
 # Choice of the agent and level of empathy
-agent_to_test = "DQN"
+agent_to_test = "QLearning"
 empathy_to_test = "balanced"
 
 
 ###########################################################################################################
 # Parameter of the episodes
-episodes = 50
+episodes = 1
 MAX_STEPS = 1000
 nb_tests = 3
 nb_agents = 5
@@ -64,7 +64,6 @@ initial_amount_ressources = 2000
 environnement_type = "stochastic"  # can be deterministic or stochastic
 np.random.seed(42)
 ###########################################################################################################
-
 
 
 def initialize_agents_and_env():
@@ -101,11 +100,17 @@ def run_simulation():
     env, agents = initialize_agents_and_env()
     states_per_step = []
 
-    # Initialize the environnement
+    # Initialize the environment
     obs = env.reset()
-    for step in range(MAX_STEPS):
 
-        actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
+    for step in range(MAX_STEPS):
+        actions = []
+
+        for i, agent in enumerate(agents):
+            if isinstance(agent, QAgent):
+                actions.append(agent.select_action(obs[i]))
+            elif isinstance(agent, DQNAgent):
+                actions.append(agent.select_action(obs[i]))
 
         next_obs, rewards, done, info = env.make_step(actions)
 
@@ -114,11 +119,18 @@ def run_simulation():
             'resource': env.resource,
             'actions': actions,
             'emotions': obs,
-            'rewards': rewards
+            'rewards': rewards,
+            'done': done
         }
-        states_per_step.append(state_snapshot)
 
+        states_per_step.append(state_snapshot)
         obs = next_obs
+
+        for i, agent in enumerate(agents):
+            if isinstance(agent, QAgent):
+                agent.step(next_state=next_obs[i],
+                           reward=rewards[i],
+                           done=done)
 
         if done:
             break
@@ -200,11 +212,31 @@ def sustainability_calculator(data_file):
     ...
 
 
+def save_q_table_detailed_to_csv(agents, filename="q_table_detailed.csv"):
+    """
+    Save each Q-value individually with action separation.
+    CSV format: agent_id, state, action, expected_reward
+    """
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["agent_id", "state", "action", "expected_reward"])
+
+        for agent_idx, agent in enumerate(agents):
+            if hasattr(agent, 'q_table'):  # QAgent only
+                for state, actions in agent.q_table.items():
+                    for action, value in enumerate(actions):
+                        writer.writerow([agent_idx, state, action, value])
+
+
 if __name__ == '__main__':
-    for episode in nb_tests:
+    for episode in range(1, episodes+1):
         states, env = run_simulation()
         filename = export_to_csv_episode_data(states,
                                    filename=f'{episode}_simulation_data.csv')
         plot_resource_evolution(states,
                                 env)
         # export_general_metric_episode(filename, output_file=f'{}', episode_number=episode) #à définir
+
+        if agent_to_test == "QLearning":
+            save_q_table_detailed_to_csv(env.agents,
+                                         filename=f"q_table_episode_{episode}.csv")

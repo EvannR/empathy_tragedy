@@ -98,10 +98,14 @@ class QAgent:
         self.previous_action = None
 
     def get_state_key(self, state):
-        """Convert the state for the Q-table """
+        """Convert the state for the Q-table."""
         if isinstance(state, np.ndarray):
             return tuple(state.flatten())
-        return tuple(state)
+        elif isinstance(state, (list, tuple)):
+            return tuple(state)
+        else:
+
+            return (state,)
 
     def get_q_values(self, state):
         """obtains the q values for a given agent and state"""
@@ -124,8 +128,7 @@ class QAgent:
 
         q_values = self.get_q_values(state)
         next_q_values = self.get_q_values(next_state) if not done else np.zeros(self.action_size)
-        target = reward + self.gamma * np.max(next_q_values)
-        
+        target = reward + self.gamma * np.max(next_q_values) 
         q_values[action] = q_values[action] + self.learning_rate * (target - q_values[action])
         self.q_table[state_key] = q_values
 
@@ -143,7 +146,6 @@ class QAgent:
             self.learn(self.current_state, self.previous_action, reward, next_state, done)
 
         self.current_state = next_state
-
         action = self.select_action(next_state)
         self.previous_action = action
 
