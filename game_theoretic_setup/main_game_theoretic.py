@@ -235,8 +235,8 @@ if __name__ == '__main__':
                                    filename=f'{episode}_simulation_data.csv')
         plot_resource_evolution(states,
                                 env)
-        # export_general_metric_episode(filename, output_file=f'{}', episode_number=episode) #à définir
+        # export_general_metric_episode(filename, output_file=f'{}', episode_number=episode) # à définir
 
         if agent_to_test == "QLearning":
             save_q_table_detailed_to_csv(env.agents,
-                                         filename=f"q_table_episode_{episode}.csv")
+                                         filename=f"q_table_episode_{episode}.csv") # add length of the episode / potentially do it later for data processing

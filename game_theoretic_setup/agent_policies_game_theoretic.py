@@ -10,7 +10,7 @@ import random
 class Agent:
     def __init__(self,
                  agent_id,
-                 memory_size=10):
+                 memory_size=10): # may be 7
         self.agent_id = agent_id
         self.memory_size = memory_size
         self.meal_history = deque([0] * memory_size, maxlen=memory_size)
