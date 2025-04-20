@@ -45,7 +45,7 @@ agent_params = {
     "DQN": params_DQN
 }
 
-agent_to_test = "DQN"
+agent_to_test = "QLearning"
 env_to_test = "random_Maze"
 empathy_to_test = "high_empathy"
 
