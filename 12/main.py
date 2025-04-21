@@ -1,5 +1,5 @@
 # main.py (modifié pour utiliser agent.get_state(env))
-from agents_policies import QAgent, DQNAgent, SocialRewardCalculator
+from agents_policies import QAgent, DQNAgent, SocialRewardCalculator, randomAgent
 from env import RandomizedGridMaze
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,7 +8,8 @@ import os
 
 agent_policy_name_to_class = {
     "QLearning": QAgent,
-    "DQN": DQNAgent
+    "DQN": DQNAgent,
+    "Random": randomAgent
 }
 
 env_name_to_class = {
@@ -45,18 +46,19 @@ agent_params = {
     "DQN": params_DQN
 }
 
-agent_to_test = "DQN"
-env_to_test = "random_Maze"
-empathy_to_test = "high_empathy"
+agent_to_test = "QLearning"   # "QLearning" ou "DQN"
+env_to_test = "random_Maze"  # "random_Maze"
+empathy_to_test = "high_empathy"  # "high_empathy", "balanced", "low_empathy"
 
 episodes = 50
 steps = 30
-nb_tests = 3
+nb_tests = 1
 env_size = 6
-nb_agents = 3
+nb_agents = 2
 np.random.seed(42)
 
-def run_single_test(agent_class, env_class, agent_config, env_config, emotion_config):
+
+def run_single_test(agent_class, env_class:RandomizedGridMaze, agent_config, env_config, emotion_config):
     env = env_class(**env_config)
     rl_agents = []
     state_size = 10
@@ -114,6 +116,7 @@ def run_single_test(agent_class, env_class, agent_config, env_config, emotion_co
         'episode_rewards': episode_rewards,
         'social_welfare': social_welfare
     }
+
 
 def plot_all():
     agent_class = agent_policy_name_to_class[agent_to_test]
@@ -176,5 +179,29 @@ def plot_all():
     print(f"récompense finale moyenne: {mean_rewards[-1]:.2f} ± {std_rewards[-1]:.2f}")
     print(f"bien-être social final moyen: {mean_welfare[-1]:.2f} ± {std_welfare[-1]:.2f}")
 
+
 if __name__ == "__main__":
-    plot_all()
+    # plot_all()
+    # agent_class = agent_policy_name_to_class[agent_to_test]
+    # env_class = env_name_to_class[env_to_test]
+    # agent_config = agent_params[agent_to_test]
+    # emotion_config = emotions_params[empathy_to_test]
+    # env_config = {
+    #     'size': env_size,
+    #     'nb_agents': nb_agents,
+    #     'agent_configs': [{'memory_size': 10} for _ in range(nb_agents)],
+    #     'reward_density': 0.2,
+    #     'respawn_prob': 0.1,
+    #     'simple_mode': True,
+    #     'auto_consume': True,
+    #     'exploit_only': False
+    # }
+    # result = run_single_test(agent_class, env_class, agent_config, env_config, emotion_config)
+    # print(type(result))
+    # for key, value in result.items():
+    #     print(f"{key}")
+
+    env = RandomizedGridMaze(size=env_size, nb_agents=nb_agents, agent_configs=[{'memory_size': 10} for _ in range(nb_agents)], reward_density=0.2, respawn_prob=0.1, simple_mode=True, auto_consume=True, exploit_only=False)
+    print(env.rewards)
+
+    print(type(env.agents[0]))

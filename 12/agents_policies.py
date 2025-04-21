@@ -8,49 +8,10 @@ from collections import deque, namedtuple
 import random
 
 
-class Agent:
-    def __init__(self, agent_id, position, memory_size=10):
-        self.agent_id = agent_id
-        self.position = position
-        self.memory_size = memory_size
-        self.meal_history = deque([0] * memory_size, maxlen=memory_size)
-        self.total_meals = 0
-
-    def record_meal(self, has_eaten, reward_value=0):
-        self.meal_history.append(1 if has_eaten else 0)
-        if has_eaten:
-            self.total_meals += 1
-
-    def get_recent_meals(self):
-        return sum(self.meal_history)
-
-    def update_position(self, new_position):
-        self.position = new_position
-
-    def get_state(self, env): # Get the state representation for the agent
-        pos_i, pos_j = self.position
-        state = np.zeros(10, dtype=np.float32)
-        state[0] = pos_i / env.size
-        state[1] = pos_j / env.size
-        directions = [
-            (-1, -1), (-1, 0), (-1, 1),
-            (0, -1),           (0, 1),
-            (1, -1),  (1, 0),  (1, 1)
-        ]
-        for idx, (di, dj) in enumerate(directions):
-            ni, nj = pos_i + di, pos_j + dj
-            if 0 <= ni < env.size and 0 <= nj < env.size:
-                state[2 + idx] = env.rewards[ni, nj]
-        return state
-
-
-Experience = namedtuple('Experience', ['state', 'action', 'reward', 'next_state', 'done'])
-
-
 class ReplayBuffer:
     def __init__(self, capacity=10000):
         self.buffer = deque(maxlen=capacity)
-
+ 
     def add(self, state, action, reward, next_state, done):
         state = np.array(state, dtype=np.float32)
         next_state = np.array(next_state, dtype=np.float32)
@@ -75,21 +36,86 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-class QAgent:
-    def __init__(self, state_size, action_size, agent_id=0, learning_rate=0.1,
-                 gamma=0.99, epsilon=1.0, epsilon_decay=0.995, epsilon_min=0.01):
+class Agent:
+    def __init__(self,
+                 agent_id:int,
+                 list_action,
+                 memory_size=10):
+        self.agent_id = agent_id # Unique identifier for the agent
+        self.memory_size = memory_size # Size of the history memory
+        self.meal_history = deque([0] * memory_size, maxlen=memory_size) # limited history
+        ## TODO : implement meal history from past_experience as a function
+        self.total_meals = 0 # counter for meals eaten
+        self.past_experience = deque(maxlen=memory_size) # limited history
+
+    def record_meal(self, has_eaten:bool, reward_value=0):
+        self.meal_history.append(1 if has_eaten else 0)
+        if has_eaten:
+            self.total_meals += 1
+
+    def get_recent_meals(self):
+        return sum(self.meal_history)
+
+    def update_position(self, new_position):
+        self.position = new_position
+
+    def get_state(self, env):
+        """
+        Return the state representation for the agent.
+        """
+        pos_i, pos_j = self.position
+        state = np.zeros(10, dtype=np.float32)
+        state[0] = pos_i / env.size
+        state[1] = pos_j / env.size
+        directions = [
+            (-1, -1), (-1, 0), (-1, 1),
+            (0, -1),           (0, 1),
+            (1, -1),  (1, 0),  (1, 1)
+        ]
+        for idx, (di, dj) in enumerate(directions):
+            ni, nj = pos_i + di, pos_j + dj
+            if 0 <= ni < env.size and 0 <= nj < env.size:
+                state[2 + idx] = env.rewards[ni, nj]
+        return state  # state is a 1D array of size 10
+
+    def __repr__(self) -> str:
+        return f"Agent {self.agent_id} at position {self.position} with total meals: {self.total_meals}"
+
+
+Experience = namedtuple('Experience', ['state', 'action', 'reward', 'next_state', 'done'])
+
+
+class QAgent(Agent):
+    def __init__(self,
+                 state_size,
+                 laction,
+                 agent_id=0,
+                 learning_rate=0.1,
+                 gamma=0.99,
+                 epsilon=1.0,
+                 epsilon_decay=0.995,
+                 epsilon_min=0.01):
         self.agent_id = agent_id
-        self.state_size = state_size
-        self.action_size = action_size
+        self.state_size = state_size # Size of a side of the grid
+        self.laction = laction
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
-        self.q_table = {}
+        self.q_table = self.init_qtable()
         self.current_state = None
         self.previous_action = None
 
+    def init_qtable(self):
+        q_table = {}
+        for i in range(self.state_size):
+            for j in range(self.state_size):
+                for action in range(self.laction):
+                    for reward_state in (0, 1):
+                        q_table[(i, j)][action][reward_state] = 0.0
+        return q_table
+    
     def get_state_key(self, state):
         return tuple(state.flatten()) if isinstance(state, np.ndarray) else tuple(state)
 
@@ -99,10 +125,10 @@ class QAgent:
             self.q_table[key] = np.zeros(self.action_size)
         return self.q_table[key]
 
-    def select_action(self, state):
-        if np.random.random() < self.epsilon:
+    def select_action(self, reward_state):
+        if np.random.random() < self.epsilon:  # Eps-greedy action selection
             return int(np.random.choice(self.action_size))
-        return int(np.argmax(self.get_q_values(state)))
+        return int(np.argmax(self.get_q_values(reward_state)))
 
     def learn(self, state, action, reward, next_state, done):
         state_key = self.get_state_key(state)
@@ -126,6 +152,18 @@ class QAgent:
         self.current_state = next_state
         self.previous_action = self.select_action(next_state)
         return self.previous_action
+    
+    def get_state(self, env):
+        return super().get_state(env)
+
+    def record_meal(self, has_eaten: bool, reward_value=0):
+        return super().record_meal(has_eaten, reward_value)
+    
+    def update_position(self, new_position):
+        return super().update_position(new_position)
+    
+    def get_recent_meals(self):
+        return super().get_recent_meals()
 
 
 class DQNNetwork(nn.Module):
@@ -141,14 +179,23 @@ class DQNNetwork(nn.Module):
         return self.fc3(x)
 
 
-class DQNAgent:
-    def __init__(self, state_size, action_size, agent_id=0, hidden_size=64,
-                 learning_rate=0.001, gamma=0.99, epsilon=1.0,
-                 epsilon_decay=0.995, epsilon_min=0.01, batch_size=64,
+class DQNAgent(Agent):
+    def __init__(self,
+                 state_size,
+                 laction,
+                 agent_id=0,
+                 hidden_size=64,
+                 learning_rate=0.001,
+                 gamma=0.9,
+                 epsilon=1.0,
+                 epsilon_decay=0.995,
+                 epsilon_min=0.01,
+                 batch_size=64,
                  update_target_every=10):
         self.agent_id = agent_id
         self.state_size = state_size
-        self.action_size = action_size
+        self.laction = laction
+        self.action_size = len(laction)
         self.gamma = gamma
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
@@ -156,15 +203,15 @@ class DQNAgent:
         self.batch_size = batch_size
         self.update_target_every = update_target_every
         self.steps = 0
-        self.policy_network = DQNNetwork(state_size, action_size, hidden_size)
-        self.target_network = DQNNetwork(state_size, action_size, hidden_size)
+        self.policy_network = DQNNetwork(state_size, self.action_size, hidden_size)
+        self.target_network = DQNNetwork(state_size, self.action_size, hidden_size)
         self.target_network.load_state_dict(self.policy_network.state_dict())
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=learning_rate)
         self.memory = ReplayBuffer()
         self.current_state = None
         self.previous_action = None
 
-    def select_action(self, state):
+    def select_action(self, state) -> int:
         if np.random.random() < self.epsilon:
             return int(np.random.choice(self.action_size))
         state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0)
@@ -203,6 +250,40 @@ class DQNAgent:
     def start_episode(self, state):
         self.current_state = state
         self.previous_action = None
+    
+    def get_state(self, env):
+        return self.super().get_state(env)
+
+    def record_meal(self, has_eaten: bool, reward_value=0):
+        return super().record_meal(has_eaten, reward_value)
+    
+    def update_position(self, new_position):
+        return super().update_position(new_position)
+    
+    def get_recent_meals(self):
+        return super().get_recent_meals()
+
+
+class randomAgent(Agent):
+    def __init__(self, agent_id:int, position:tuple):
+        super().__init__(agent_id, position)
+        self.agent_id = agent_id
+        self.position = position
+
+    def select_action(self, state):
+        return np.random.choice(5)  # Assuming 4 possible actions
+
+    def get_state(self, env):
+        return super().get_state(env)
+
+    def record_meal(self, has_eaten: bool, reward_value=0):
+        return super().record_meal(has_eaten, reward_value)
+
+    def update_position(self, new_position):
+        return super().update_position(new_position)
+
+    def get_recent_meals(self):
+        return super().get_recent_meals()
 
 
 class SocialRewardCalculator:

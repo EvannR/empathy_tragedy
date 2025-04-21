@@ -1,29 +1,48 @@
 import numpy as np
-from agents_policies import Agent
+from agents_policies import QAgent, DQNAgent, randomAgent
 import time 
 import os
 
 
 class GridMaze:
-    def __init__(self, size=4, nb_agents=1, agent_configs=None):
+    def __init__(self, class_agent, size=4, nb_agents=1, agent_configs=None, choose_moves=False):
         self.size = size
         self.nb_agents = nb_agents
-        self.number_actions = 5  # UP, DOWN, LEFT, RIGHT, EXPLOIT
+        if choose_moves:
+            self.list_actions = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'EXPLOIT'] 
+            # self.list_actions = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'EXPLOIT', 'REST']
+        else:
+            self.list_actions = ['EXPLOIT', 'REST']
+        self.number_actions = len(self.list_actions)
         self.actions = np.arange(self.number_actions)
-        
+  
         # Initialisation des positions des agents
         self.agents_positions = self.initialize_positions()
-        
+
         # Création des agents avec leurs positions
         if agent_configs is None:
             agent_configs = [{'memory_size': 10} for _ in range(nb_agents)]
-        
+
         self.agents = []
         for i in range(nb_agents):
             config = agent_configs[i] if i < len(agent_configs) else {'memory_size': 10}
             memory_size = config.get('memory_size', 10)
+            if class_agent == QAgent:
+                self.agents.append(class_agent(
+                    agent_id=i,
+                    memory_size,
+                    self.list_actions))
+            elif class_agent == DQNAgent:
+                raise Warning("DQNAgent is not really tested yet.")
+                self.agents.append(class_agent(i, self.agents_positions[i], memory_size, self.list_actions))
+            elif class_agent == randomAgent:
+                raise Warning("DQNAgent is not really tested yet.")
+                self.agents.append(class_agent(i, self.agents_positions[i], memory_size))
+            else:
+                raise ValueError(f"Unknown agent class: {class_agent}")
+            self.agents.append(class_agent(i, self.agents_positions[i], memory_size), self.list_actions)
             self.agents.append(Agent(i, self.agents_positions[i], memory_size))
-        
+
         # Initialisation des récompenses
         self.rewards = np.zeros((size, size))
 
@@ -38,46 +57,58 @@ class GridMaze:
             positions.add((i, j))
         return list(positions)
 
-    def init_transitions(self):
-        UP, DOWN, LEFT, RIGHT, EXPLOIT = 0, 1, 2, 3, 4
+    def init_transitions(self, choose_moves=False):
+        """
+        Define P, the transition function.
+        P[(i, j)][action] = (i', j') where (i', j')
+        is the new position after taking action from (i, j).
+        """
+        if choose_moves:
+            UP, DOWN, LEFT, RIGHT, EXPLOIT = 0, 1, 2, 3, 4 # Ne rien faire ??????
+            # REST = 5
+        else:
+            EXPLOIT, REST = 0, 1
         self.P = {}
-        
+
         for i in range(self.size):
             for j in range(self.size):
                 self.P[(i, j)] = {}
-                
+
                 # UP action
                 if i == 0:
-                    self.P[(i, j)][UP] = (i, j)
+                    self.P[(i, j)]['UP'] = (i, j)
                 else:
-                    self.P[(i, j)][UP] = (i - 1, j)
-                
+                    self.P[(i, j)]['UP'] = (i - 1, j)
+
                 # DOWN action
                 if i == self.size - 1:
-                    self.P[(i, j)][DOWN] = (i, j)
+                    self.P[(i, j)]['DOWN'] = (i, j)
                 else:
-                    self.P[(i, j)][DOWN] = (i + 1, j)
-                
+                    self.P[(i, j)]['DOWN'] = (i + 1, j)
+
                 # LEFT action
                 if j == 0:
-                    self.P[(i, j)][LEFT] = (i, j)
+                    self.P[(i, j)]['LEFT'] = (i, j)
                 else:
-                    self.P[(i, j)][LEFT] = (i, j - 1)
-                
+                    self.P[(i, j)]['LEFT'] = (i, j - 1)
+
                 # RIGHT action
                 if j == self.size - 1:
-                    self.P[(i, j)][RIGHT] = (i, j)
+                    self.P[(i, j)]['RIGHT'] = (i, j)
                 else:
-                    self.P[(i, j)][RIGHT] = (i, j + 1)
-                
+                    self.P[(i, j)]['RIGHT'] = (i, j + 1)
+
                 # EXPLOIT action
-                self.P[(i, j)][EXPLOIT] = (i, j)
+                self.P[(i, j)]['EXPLOIT'] = (i, j)
+
+                # REST action
+                self.P[(i, j)]['REST'] = (i, j)
 
     def new_episode(self):
         """Réinitialise l'environnement pour un nouvel épisode"""
         self.time_step = 0
         self.agents_positions = self.initialize_positions()
-        
+ 
         # update of position of the agents
         for i, agent in enumerate(self.agents):
             agent.update_position(self.agents_positions[i])
@@ -88,58 +119,64 @@ class GridMaze:
         # dans la classe de base, rien n'est mis à jour
 
     def make_step(self, agent_idx, action):
-        """Met à jour l'état d'un agent spécifique et enregistre les repas"""
+        """
+        Met à jour l'état d'un agent spécifique et enregistre les repas
+        """
         agent = self.agents[agent_idx]
         current_pos = agent.position
         new_pos = self.P[current_pos][action]
-        
+
         # update the position of the agent
         agent.update_position(new_pos)
         self.agents_positions[agent_idx] = new_pos
-        
+
         # vérifie s'il y a une récompense à cette position
         reward = self.rewards[new_pos]
         has_eaten = reward > 0
-        
-        
-        agent.record_meal(has_eaten, reward)# enregistre si l'agent a mangé
-        
+
+        agent.record_meal(has_eaten, reward)  # enregistre si l'agent a mangé
+
         return reward, new_pos
-    
+
     def get_agent_meal_stats(self, agent_idx):
-        """Retourne les statistiques de repas d'un agent"""
+        """
+        Retourne les statistiques de repas d'un agent
+        """
         agent = self.agents[agent_idx]
         return {
             'recent_meals': agent.get_recent_meals(),
             'total_meals': agent.total_meals,
             'meal_history': list(agent.meal_history)
         }
-    
+
     def get_all_agents_meal_stats(self):
         """Retourne les statistiques de repas de tous les agents"""
         return [self.get_agent_meal_stats(i) for i in range(self.nb_agents)]
 
 
 class RandomizedGridMaze(GridMaze):
-    def __init__(self, size=4, nb_agents=1, agent_configs=None, reward_density=0.4, 
-                 respawn_prob=0.1, simple_mode=False, auto_consume=False, 
+    def __init__(self, size=4, nb_agents=1, class_agent, agent_configs=None, reward_density=0.4,
+                 respawn_prob=0.1, simple_mode=False, auto_consume=False,
                  exploit_only=True):
         super().__init__(size, nb_agents, agent_configs)
         self.reward_density = reward_density
         self.respawn_prob = respawn_prob
-        self.simple_mode = simple_mode  # Mode simple ou complexe ((( a checker )) 
+        self.simple_mode = simple_mode  # Mode simple ou complexe ((( a checker ))
         self.auto_consume = auto_consume  # Consommation automatique ou non
         self.exploit_only = exploit_only  # Consommation uniquement avec EXPLOIT
         self.initialize_rewards()
     
     def initialize_rewards(self):
-        """Générer des récompenses aléatoires dans la grille."""
+        """
+        Générer des récompenses aléatoires dans la grille.
+        """
         self.rewards = np.zeros((self.size, self.size))
         num_rewards = int(self.size * self.size * self.reward_density)
         reward_positions = np.random.choice(self.size * self.size, num_rewards, replace=False)
         for pos in reward_positions:
             i, j = divmod(pos, self.size)
-            self.rewards[i, j] = np.random.uniform(0.1, 1.0)
+            # self.rewards[i, j] = round(np.random.uniform(0.1, 1.0), 3)
+            self.rewards[i, j] = 1
     
     def update_environment(self):
         """Met à jour l'environnement à chaque pas de temps"""
@@ -193,6 +230,7 @@ class RandomizedGridMaze(GridMaze):
         agent.record_meal(has_eaten, reward)
         
         return reward, new_pos
+        
 
 
 
