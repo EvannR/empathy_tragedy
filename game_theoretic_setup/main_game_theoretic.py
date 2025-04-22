@@ -17,10 +17,12 @@ env_name_to_class = {
 }
 
 emotions_params = {
-    "high_empathy": {"alpha": 0.3, "beta": 0.7},
-    "balanced": {"alpha": 0.5, "beta": 0.5},
-    "low_empathy": {"alpha": 0.8, "beta": 0.7}
-}
+    "high_empathy": {"alpha": 0, "beta": 0.7},
+    "medium_high_empathy": {"alpha": 0.3, "beta": 0.7},
+    "balanced": {"alpha": 0.5, "beta": 0.7},
+    "low_empathy": {"alpha": 0.8, "beta": 0.7},
+    "no_empathy": {"alpha": 1, "beta": 0.7}
+} # alpha defines how much you value your own / 1- alpha defines how much you value others
 
 ###########################################################################################################
 # Parameter for the agents
@@ -49,8 +51,8 @@ agent_params = {
 }
 
 # Choice of the agent and level of empathy
-agent_to_test = "QLearning" # "DQN" or "QLearning"
-empathy_to_test = "balanced"  # can be : "high_empathy", "balanced" or "low_empathy"
+agent_to_test = "QLearning"  # "DQN" or "QLearning"
+empathy_to_test = "high_empathy"  # can be : "high_empathy", "medium_high_empathy", "balanced", "low_empathy" or "no_empathy"
 
 
 ###########################################################################################################
