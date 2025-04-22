@@ -99,7 +99,7 @@ class GameTheoreticEnv:
         else:
             raise ValueError(f"Unsupported emotion_type: {self.emotion_type}")
 
-    def step(self, actions):
+    def make_step(self, actions):
         """
         Execute one timestep: agents choose actions, environment updates.
         actions: list of 0/1 for each agent.

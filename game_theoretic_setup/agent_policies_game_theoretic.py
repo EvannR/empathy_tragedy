@@ -79,11 +79,12 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-class QAgent:
+class QAgent(Agent):
     def __init__(self, state_size, action_size, agent_id=0, learning_rate=0.1,
                  gamma=0.99, epsilon=1.0, epsilon_decay=0.995,
-                 epsilon_min=0.01):
-        self.agent_id = agent_id
+                 epsilon_min=0.01, memory_size=10):
+        super().__init__(agent_id, memory_size=memory_size)  # Hérite de Agent
+
         self.state_size = state_size
         self.action_size = action_size
         self.learning_rate = learning_rate
@@ -192,8 +193,6 @@ class DQNAgent(Agent):
 
         self.current_state = None
         self.previous_action = None
-
-        self.meal_history = []
 
     def select_action(self, state):
         """Select and action according to epsilon-greedy"""
@@ -349,7 +348,7 @@ class SocialRewardCalculator:
 
             others_satisfaction = np.mean([s for i, s in enumerate(personal_satisfactions) if i != idx])
 
-            emotional_reward = self.alpha * own_satisfaction + (1 - self.alpha) * others_satisfaction
+            emotional_reward = self.alpha * others_satisfaction + (1 - self.alpha) * own_satisfaction
             rewards.append(emotional_reward)
 
         return rewards

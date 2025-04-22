@@ -16,13 +16,20 @@ env_name_to_class = {
     "game_theoretic": GameTheoreticEnv  # Utilisation de GameTheoreticEnv
 }
 
+# changed no longer used but can be a reference
 emotions_params = {
     "high_empathy": {"alpha": 0, "beta": 0.7},
     "medium_high_empathy": {"alpha": 0.3, "beta": 0.7},
     "balanced": {"alpha": 0.5, "beta": 0.7},
     "low_empathy": {"alpha": 0.8, "beta": 0.7},
     "no_empathy": {"alpha": 1, "beta": 0.7}
-} # alpha defines how much you value your own / 1- alpha defines how much you value others
+}
+
+emotional_observation_type = {
+    "average": "average",
+    "vector": 'vector'
+
+}
 
 ###########################################################################################################
 # Parameter for the agents
@@ -53,6 +60,10 @@ agent_params = {
 # Choice of the agent and level of empathy
 agent_to_test = "QLearning"  # "DQN" or "QLearning"
 empathy_to_test = "high_empathy"  # can be : "high_empathy", "medium_high_empathy", "balanced", "low_empathy" or "no_empathy"
+emotion_type = "average" # can be average or vector
+see_emotions = True
+alpha = 0 # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
+beta = 0.7 # parameter for the valuation of the last meal (higher beta = higher valuation)
 
 
 ###########################################################################################################
@@ -71,10 +82,14 @@ def initialize_agents_and_env():
     """
     Initialize a new environnement
     """
-    env = GameTheoreticEnv(nb_agents=nb_agents, 
+    env = GameTheoreticEnv(nb_agents=nb_agents,
                            env_type=environnement_type,
                            initial_resources=initial_amount_ressources,
-                           emotion_type=empathy_to_test)
+                           emotion_type=emotion_type,
+                           see_emotions=see_emotions,
+                           agent_class=agent_policy_name_to_class[agent_to_test],
+                           alpha=alpha,
+                           beta=beta)
 
     sample_obs = env.get_observation()
     state_size = len(sample_obs[0]) if isinstance(sample_obs[0], 
@@ -84,13 +99,13 @@ def initialize_agents_and_env():
     agents = []
     for agent_idx in range(nb_agents):
         if agent_to_test == "QLearning":
-            agent = QAgent(state_size, action_size, 
+            agent = QAgent(state_size, action_size,
                            agent_id=agent_idx,
                            **params_QLearning)
         else:
-            agent = DQNAgent(state_size, 
-                             action_size, 
-                             agent_id=agent_idx, 
+            agent = DQNAgent(state_size,
+                             action_size,
+                             agent_id=agent_idx,
                              **params_DQN)
         agents.append(agent)
 
@@ -185,7 +200,7 @@ def plot_resource_evolution(states_per_step, env, save_path="resource_evolution.
     plt.plot(steps, resources, label='Level of ressources', color='green', linewidth=2)
     plt.xlabel("Step")
     plt.ylabel("Ressource")
-    plt.title(f"Fluctuation of ressources in the environment for agent: {agent_to_test} with empathy level: {empathy_to_test}")
+    plt.title(f"Fluctuation of ressources in the environment for agent: {agent_to_test} with empathy level: {alpha}")
     plt.ylim(0, env.initial_resources * 1.1)
     plt.grid(True)
     plt.legend()
