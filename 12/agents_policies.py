@@ -9,14 +9,14 @@ import random
 
 
 class Agent:
-    def __init__(self, agent_id, position, memory_size=10):
+    def __init__(self, agent_id, position:tuple, memory_size=10):
         self.agent_id = agent_id
         self.position = position
         self.memory_size = memory_size
         self.meal_history = deque([0] * memory_size, maxlen=memory_size)
         self.total_meals = 0
 
-    def record_meal(self, has_eaten, reward_value=0):
+    def record_meal(self, has_eaten:bool, reward_value=0):
         self.meal_history.append(1 if has_eaten else 0)
         if has_eaten:
             self.total_meals += 1
@@ -27,7 +27,10 @@ class Agent:
     def update_position(self, new_position):
         self.position = new_position
 
-    def get_state(self, env): # Get the state representation for the agent
+    def get_state(self, env): 
+        """
+        Get the state representation for the agent
+        """
         pos_i, pos_j = self.position
         state = np.zeros(10, dtype=np.float32)
         state[0] = pos_i / env.size
