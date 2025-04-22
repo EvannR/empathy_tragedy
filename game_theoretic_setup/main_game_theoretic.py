@@ -5,7 +5,7 @@ import csv
 import matplotlib.pyplot as plt
 
 ###########################################################################################################
-# General parameter
+# General parameter for the simulations
 agent_policy_name_to_class = {
     "QLearning": QAgent,
     "DQN": DQNAgent
@@ -23,8 +23,6 @@ emotions_params = {
 
 ###########################################################################################################
 # Parameter for the agents
-emotion_type = "average" # can be : "high_empathy", "balanced" or "low_empathy"
-
 params_QLearning = {
     "learning_rate": 0.1,
     "gamma": 0.99,
@@ -50,8 +48,8 @@ agent_params = {
 }
 
 # Choice of the agent and level of empathy
-agent_to_test = "QLearning"
-empathy_to_test = "balanced"
+agent_to_test = "QLearning" # "DQN" or "QLearning"
+empathy_to_test = "balanced"  # can be : "high_empathy", "balanced" or "low_empathy"
 
 
 ###########################################################################################################
@@ -73,7 +71,7 @@ def initialize_agents_and_env():
     env = GameTheoreticEnv(nb_agents=nb_agents, 
                            env_type=environnement_type,
                            initial_resources=initial_amount_ressources,
-                           emotion_type=emotion_type)
+                           emotion_type=empathy_to_test)
 
     sample_obs = env.get_observation()
     state_size = len(sample_obs[0]) if isinstance(sample_obs[0], 
@@ -131,6 +129,10 @@ def run_simulation():
                 agent.step(next_state=next_obs[i],
                            reward=rewards[i],
                            done=done)
+            elif isinstance(agent, DQNAgent):
+                agent.step(next_state=next_obs[i],
+                           reward=rewards[i],
+                           done=done)
 
         if done:
             break
@@ -138,15 +140,17 @@ def run_simulation():
     return states_per_step, env
 
 
-def export_to_csv_episode_data(states_per_step, filename=f'simulation_data.csv'):
+def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'):
     """
     Function used to create the data for each simulation
     """
+
     with open(filename, mode='w', newline='') as csvfile:
         fieldnames = ['step', 'resource'] + \
                      [f'emotion_{i}' for i in range(len(states_per_step[0]['emotions']))] + \
                      [f'reward_{i}' for i in range(len(states_per_step[0]['rewards']))] + \
                      [f'action_{i}' for i in range(len(states_per_step[0]['actions']))]
+
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -161,9 +165,9 @@ def export_to_csv_episode_data(states_per_step, filename=f'simulation_data.csv')
                 row[f'reward_{i}'] = val
             for i, val in enumerate(step_data['actions']):
                 row[f'action_{i}'] = val
+
             writer.writerow(row)
 
-    
     return filename
 
 
@@ -186,31 +190,6 @@ def plot_resource_evolution(states_per_step, env, save_path="resource_evolution.
     plt.savefig(save_path)
     plt.close()
 
-def export_general_metric_episode(input_file, output_file, episode_number):
-    equality_gini_ceoficient = gini_calculator(input_file) # measure of fairness
-    social_welfare = social_welfare_calculator(input_file) # sum of marginal gain
-    sustainability = sustainability_calculator(input_file) # average rate of the decision to take a ressource
-
-    fieldnames = ['episode_number', 'equality_gini_ceoficient', 'social_welfare', 'sustainability']
-
-    new_line = [episode_number, equality_gini_ceoficient, social_welfare, sustainability]
-
-    with open(output_file, mode='a', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, filednames=fieldnames)
-        writer.writerows(new_line)
-
-
-def gini_calculator(data_file):
-    ...
-
-
-def social_welfare_calculator(data_file):
-    ...
-
-
-def sustainability_calculator(data_file):
-    ...
-
 
 def save_q_table_detailed_to_csv(agents, filename="q_table_detailed.csv"):
     """
@@ -232,10 +211,9 @@ if __name__ == '__main__':
     for episode in range(1, episodes+1):
         states, env = run_simulation()
         filename = export_to_csv_episode_data(states,
-                                   filename=f'{episode}_simulation_data.csv')
+                                              filename=f'{episode}_simulation_data.csv')
         plot_resource_evolution(states,
                                 env)
-        # export_general_metric_episode(filename, output_file=f'{}', episode_number=episode) # à définir
 
         if agent_to_test == "QLearning":
             save_q_table_detailed_to_csv(env.agents,

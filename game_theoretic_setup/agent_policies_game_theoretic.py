@@ -299,8 +299,8 @@ class SocialRewardCalculator:
             value of the last meal (0-1)
         """
         self.nb_agents = nb_agents
-        self.alpha = alpha  # balance entre soi et les autres
-        self.beta = beta    # balance entre dernier repas et historique
+        self.alpha = alpha  # empathic value
+        self.beta = beta    # balance last and other meal in history
 
     def calculate_personal_satisfaction(self, agent):
         """
