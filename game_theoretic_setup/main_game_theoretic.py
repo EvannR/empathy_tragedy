@@ -3,6 +3,7 @@ from agent_policies_game_theoretic import QAgent, DQNAgent
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
+import pandas as pd
 
 ###########################################################################################################
 # General parameter for the simulations
@@ -137,7 +138,7 @@ def run_simulation():
         if done:
             break
 
-    return states_per_step, env
+    return states_per_step, env, agents
 
 
 def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'):
@@ -207,14 +208,40 @@ def save_q_table_detailed_to_csv(agents, filename="q_table_detailed.csv"):
                         writer.writerow([agent_idx, state, action, value])
 
 
+def visualize_q_table(filename):
+    df = pd.read_csv(filename)
+
+    # Afficher les premières lignes
+    print(df.head())
+
+    # Afficher les valeurs pour un agent spécifique (par exemple agent 0)
+    agent_id = 0
+    df_agent = df[df['agent_id'] == agent_id]
+
+    # Visualiser la Q-table : état vs action (carte de chaleur)
+    pivot_table = df_agent.pivot(index='state', columns='action', values='expected_reward')
+
+    plt.figure(figsize=(12, 6))
+    plt.title(f"Q-table (agent {agent_id})")
+    heatmap = plt.imshow(pivot_table.fillna(0), cmap='viridis', aspect='auto')
+    plt.colorbar(heatmap, label='Expected Reward')
+    plt.xlabel("Action")
+    plt.ylabel("State")
+    plt.xticks(ticks=range(len(pivot_table.columns)), labels=pivot_table.columns)
+    plt.yticks(ticks=range(len(pivot_table.index)), labels=pivot_table.index)
+    plt.tight_layout()
+    plt.show()
+    
+
 if __name__ == '__main__':
     for episode in range(1, episodes+1):
-        states, env = run_simulation()
+        states, env, agents = run_simulation()
         filename = export_to_csv_episode_data(states,
                                               filename=f'{episode}_simulation_data.csv')
         plot_resource_evolution(states,
                                 env)
 
         if agent_to_test == "QLearning":
-            save_q_table_detailed_to_csv(env.agents,
-                                         filename=f"q_table_episode_{episode}.csv") # add length of the episode / potentially do it later for data processing
+            save_q_table_detailed_to_csv(agents,
+                                         filename=f"q_table_episode_{episode}.csv")
+            visualize_q_table(f"q_table_episode_{episode}.csv")
