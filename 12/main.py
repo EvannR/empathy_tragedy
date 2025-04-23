@@ -49,7 +49,7 @@ agent_to_test = "DQN"
 env_to_test = "random_Maze"
 empathy_to_test = "high_empathy"
 
-episodes = 1000
+episodes = 100
 steps = 500
 nb_tests = 3
 env_size = 6
@@ -189,7 +189,7 @@ def plot_all():
     print("\n===== final results =====")
     print(f"agent: {agent_to_test}, empathy: {empathy_to_test}")
     print(f"mean final reward: {mean_rewards[-1]:.2f} ± {std_rewards[-1]:.2f}")
-    print(f"mena final social welfare: {mean_welfare[-1]:.2f} ± {std_welfare[-1]:.2f}")
+    print(f"mean final social welfare: {mean_welfare[-1]:.2f} ± {std_welfare[-1]:.2f}")
 
 if __name__ == "__main__":
     plot_all()
