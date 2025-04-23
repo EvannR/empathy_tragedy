@@ -5,8 +5,7 @@ import csv
 import matplotlib.pyplot as plt
 import pandas as pd
 
-###########################################################################################################
-# General parameter for the simulations
+##############################################################################
 agent_policy_name_to_class = {
     "QLearning": QAgent,
     "DQN": DQNAgent
@@ -18,11 +17,11 @@ env_name_to_class = {
 
 # changed no longer used but can be a reference
 emotions_params = {
-    "high_empathy": {"alpha": 0, "beta": 0.7},
-    "medium_high_empathy": {"alpha": 0.3, "beta": 0.7},
+    "high_empathy": {"alpha": 1, "beta": 0.7},
+    "medium_high_empathy": {"alpha": 0.7, "beta": 0.7},
     "balanced": {"alpha": 0.5, "beta": 0.7},
-    "low_empathy": {"alpha": 0.8, "beta": 0.7},
-    "no_empathy": {"alpha": 1, "beta": 0.7}
+    "low_empathy": {"alpha": 0.3, "beta": 0.7},
+    "no_empathy": {"alpha": 0, "beta": 0.7}
 }
 
 emotional_observation_type = {
@@ -31,7 +30,7 @@ emotional_observation_type = {
 
 }
 
-###########################################################################################################
+##############################################################################
 # Parameter for the agents
 params_QLearning = {
     "learning_rate": 0.1,
@@ -58,24 +57,23 @@ agent_params = {
 }
 
 # Choice of the agent and level of empathy
-agent_to_test = "QLearning"  # "DQN" or "QLearning"
-empathy_to_test = "high_empathy"  # can be : "high_empathy", "medium_high_empathy", "balanced", "low_empathy" or "no_empathy"
-emotion_type = "average" # can be average or vector
-see_emotions = True
-alpha = 0 # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
-beta = 0.7 # parameter for the valuation of the last meal (higher beta = higher valuation)
+agent_to_test = "DQN"  # "DQN" or "QLearning"
+emotion_type = "average"  # can be average or vector
+see_emotions = False
+alpha = 1  # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
+beta = 0.3  # parameter for the valuation of the last meal (higher beta = higher valuation)
 
 
-###########################################################################################################
+##############################################################################
 # Parameter of the episodes
 episodes = 1
-MAX_STEPS = 1000
+MAX_STEPS = 100000
 nb_tests = 3
 nb_agents = 5
-initial_amount_ressources = 2000
-environnement_type = "stochastic"  # can be deterministic or stochastic
+initial_amount_ressources = 3000
+environnement_type = "stochastic"  # can be deterministic or stochastic #
 np.random.seed(42)
-###########################################################################################################
+##############################################################################
 
 
 def initialize_agents_and_env():
@@ -92,7 +90,7 @@ def initialize_agents_and_env():
                            beta=beta)
 
     sample_obs = env.get_observation()
-    state_size = len(sample_obs[0]) if isinstance(sample_obs[0], 
+    state_size = len(sample_obs[0]) if isinstance(sample_obs[0],
                                                   (list, np.ndarray)) else 1
     action_size = env.number_actions
 
@@ -200,7 +198,7 @@ def plot_resource_evolution(states_per_step, env, save_path="resource_evolution.
     plt.plot(steps, resources, label='Level of ressources', color='green', linewidth=2)
     plt.xlabel("Step")
     plt.ylabel("Ressource")
-    plt.title(f"Fluctuation of ressources in the environment for agent: {agent_to_test} with empathy level: {alpha}")
+    plt.title(f"Fluctuation of ressources in the environment for agent: {agent_to_test} with empathy level: {alpha} and valuation of last meal: {beta}")
     plt.ylim(0, env.initial_resources * 1.1)
     plt.grid(True)
     plt.legend()
@@ -248,7 +246,7 @@ def visualize_q_table(filename):
     plt.yticks(ticks=range(len(pivot_table.index)), labels=pivot_table.index)
     plt.tight_layout()
     plt.show()
-    
+
 
 if __name__ == '__main__':
     for episode in range(1, episodes+1):
@@ -258,7 +256,8 @@ if __name__ == '__main__':
         plot_resource_evolution(states,
                                 env)
 
-        if agent_to_test == "QLearning":
-            save_q_table_detailed_to_csv(agents,
-                                         filename=f"q_table_episode_{episode}.csv")
-            visualize_q_table(f"q_table_episode_{episode}.csv")
+#######added to visualize the fluctuation of the Q_table
+        #if agent_to_test == "QLearning":
+        #    save_q_table_detailed_to_csv(agents,
+        #                                 filename=f"q_table_episode_{episode}.csv")
+        #    visualize_q_table(f"q_table_episode_{episode}.csv")
