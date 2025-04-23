@@ -65,7 +65,7 @@ class ReplayBuffer:
     def sample(self, batch_size):
         experiences = random.sample(self.buffer, min(batch_size, len(self.buffer)))
 
-    # Conversion explicite pour éviter les erreurs avec numpy 2.x
+        # Conversion explicite pour éviter les erreurs avec numpy 2.x
         states = torch.tensor(np.stack([e.state for e in experiences], axis=0).astype(np.float32))
         actions = torch.tensor(np.stack([e.action for e in experiences], axis=0).astype(np.int64))
         rewards = torch.tensor(np.array([[e.reward] for e in experiences], dtype=np.float32))
@@ -94,7 +94,10 @@ class QAgent:
         self.previous_action = None
 
     def get_state_key(self, state):
-        return tuple(state.flatten()) if isinstance(state, np.ndarray) else tuple(state)
+        #return tuple(state.flatten()) if isinstance(state, np.ndarray) else tuple(state)
+        # round every entry to 2 decimals before making the key
+        rounded = np.round(state, 2)
+        return tuple(rounded.flatten())
 
     def get_q_values(self, state):
         key = self.get_state_key(state)
@@ -104,7 +107,8 @@ class QAgent:
 
     def select_action(self, state):
         if np.random.random() < self.epsilon:
-            return int(np.random.choice(self.action_size))
+            #return int(np.random.choice(self.action_size))
+            return np.random.randint(self.action_size)
         return int(np.argmax(self.get_q_values(state)))
 
     def learn(self, state, action, reward, next_state, done):
@@ -112,23 +116,29 @@ class QAgent:
         q_values = self.get_q_values(state)
         next_q_values = self.get_q_values(next_state) if not done else np.zeros(self.action_size)
         target = reward + self.gamma * np.max(next_q_values)
+        old_q_value = q_values[action]
         q_values[action] += self.learning_rate * (target - q_values[action])
-        old_value = q_values[action]
-        print(f"Q-update: State={state_key}, Action={action}, Old={old_value:.4f}, New={q_values[action]:.4f}, Reward={reward:.4f}")
+        print(f"Q-update: State={state_key}, Action={action}, Old={old_q_value:.4f}, New={q_values[action]:.4f}, Reward={reward:.4f}")
         self.q_table[state_key] = q_values
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
     def start_episode(self, state):
         self.current_state = state
-        self.previous_action = None
+        action = self.select_action(state)
+        self.previous_action = action
+        return action
 
-    def step(self, next_state, reward, done):
+    def step(self, reward, next_state, done):
+        # Update Q-table on last transition
         if self.current_state is not None and self.previous_action is not None:
             self.learn(self.current_state, self.previous_action, reward, next_state, done)
+
+        # Move to next state and choose next action
         self.current_state = next_state
-        self.previous_action = self.select_action(next_state)
-        return self.previous_action
+        action = self.select_action(self.current_state)
+        self.previous_action = action
+        return action
 
 
 class DQNNetwork(nn.Module):
@@ -169,7 +179,8 @@ class DQNAgent:
 
     def select_action(self, state):
         if np.random.random() < self.epsilon:
-            return int(np.random.choice(self.action_size))
+            #return int(np.random.choice(self.action_size))
+            return np.random.randint(self.action_size)
         state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0)
         with torch.no_grad():
             action_values = self.policy_network(state_tensor)
@@ -191,21 +202,24 @@ class DQNAgent:
     def remember(self, state, action, reward, next_state, done):
         self.memory.add(state, action, reward, next_state, done)
 
-    def step(self, next_state, reward, done):
+    def start_episode(self, state):
+        self.current_state = state
+        action = self.select_action(state)
+        self.previous_action = action
+        return action
+
+    def step(self, reward, next_state, done):
         if self.current_state is not None and self.previous_action is not None:
             self.remember(self.current_state, self.previous_action, reward, next_state, done)
             if len(self.memory) >= self.batch_size:
                 experiences = self.memory.sample(self.batch_size)
                 self.learn(experiences)
         self.current_state = next_state
-        self.previous_action = self.select_action(next_state)
+        action = self.select_action(next_state)
+        self.previous_action = action
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
-        return self.previous_action
-
-    def start_episode(self, state):
-        self.current_state = state
-        self.previous_action = None
+        return action
 
 
 class SocialRewardCalculator:

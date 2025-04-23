@@ -3,9 +3,10 @@ from agent_policies_game_theoretic import QAgent, DQNAgent
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
+import pandas as pd
 
 ###########################################################################################################
-# General parameter
+# General parameter for the simulations
 agent_policy_name_to_class = {
     "QLearning": QAgent,
     "DQN": DQNAgent
@@ -15,16 +16,23 @@ env_name_to_class = {
     "game_theoretic": GameTheoreticEnv  # Utilisation de GameTheoreticEnv
 }
 
+# changed no longer used but can be a reference
 emotions_params = {
-    "high_empathy": {"alpha": 0.3, "beta": 0.7},
-    "balanced": {"alpha": 0.5, "beta": 0.5},
-    "low_empathy": {"alpha": 0.8, "beta": 0.7}
+    "high_empathy": {"alpha": 0, "beta": 0.7},
+    "medium_high_empathy": {"alpha": 0.3, "beta": 0.7},
+    "balanced": {"alpha": 0.5, "beta": 0.7},
+    "low_empathy": {"alpha": 0.8, "beta": 0.7},
+    "no_empathy": {"alpha": 1, "beta": 0.7}
+}
+
+emotional_observation_type = {
+    "average": "average",
+    "vector": 'vector'
+
 }
 
 ###########################################################################################################
 # Parameter for the agents
-emotion_type = "average" # can be : "high_empathy", "balanced" or "low_empathy"
-
 params_QLearning = {
     "learning_rate": 0.1,
     "gamma": 0.99,
@@ -50,8 +58,12 @@ agent_params = {
 }
 
 # Choice of the agent and level of empathy
-agent_to_test = "QLearning"
-empathy_to_test = "balanced"
+agent_to_test = "QLearning"  # "DQN" or "QLearning"
+empathy_to_test = "high_empathy"  # can be : "high_empathy", "medium_high_empathy", "balanced", "low_empathy" or "no_empathy"
+emotion_type = "average" # can be average or vector
+see_emotions = True
+alpha = 0 # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
+beta = 0.7 # parameter for the valuation of the last meal (higher beta = higher valuation)
 
 
 ###########################################################################################################
@@ -70,10 +82,14 @@ def initialize_agents_and_env():
     """
     Initialize a new environnement
     """
-    env = GameTheoreticEnv(nb_agents=nb_agents, 
+    env = GameTheoreticEnv(nb_agents=nb_agents,
                            env_type=environnement_type,
                            initial_resources=initial_amount_ressources,
-                           emotion_type=emotion_type)
+                           emotion_type=emotion_type,
+                           see_emotions=see_emotions,
+                           agent_class=agent_policy_name_to_class[agent_to_test],
+                           alpha=alpha,
+                           beta=beta)
 
     sample_obs = env.get_observation()
     state_size = len(sample_obs[0]) if isinstance(sample_obs[0], 
@@ -83,13 +99,13 @@ def initialize_agents_and_env():
     agents = []
     for agent_idx in range(nb_agents):
         if agent_to_test == "QLearning":
-            agent = QAgent(state_size, action_size, 
+            agent = QAgent(state_size, action_size,
                            agent_id=agent_idx,
                            **params_QLearning)
         else:
-            agent = DQNAgent(state_size, 
-                             action_size, 
-                             agent_id=agent_idx, 
+            agent = DQNAgent(state_size,
+                             action_size,
+                             agent_id=agent_idx,
                              **params_DQN)
         agents.append(agent)
 
@@ -131,22 +147,28 @@ def run_simulation():
                 agent.step(next_state=next_obs[i],
                            reward=rewards[i],
                            done=done)
+            elif isinstance(agent, DQNAgent):
+                agent.step(next_state=next_obs[i],
+                           reward=rewards[i],
+                           done=done)
 
         if done:
             break
 
-    return states_per_step, env
+    return states_per_step, env, agents
 
 
-def export_to_csv_episode_data(states_per_step, filename=f'simulation_data.csv'):
+def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'):
     """
     Function used to create the data for each simulation
     """
+
     with open(filename, mode='w', newline='') as csvfile:
         fieldnames = ['step', 'resource'] + \
                      [f'emotion_{i}' for i in range(len(states_per_step[0]['emotions']))] + \
                      [f'reward_{i}' for i in range(len(states_per_step[0]['rewards']))] + \
                      [f'action_{i}' for i in range(len(states_per_step[0]['actions']))]
+
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -161,9 +183,9 @@ def export_to_csv_episode_data(states_per_step, filename=f'simulation_data.csv')
                 row[f'reward_{i}'] = val
             for i, val in enumerate(step_data['actions']):
                 row[f'action_{i}'] = val
+
             writer.writerow(row)
 
-    
     return filename
 
 
@@ -178,38 +200,13 @@ def plot_resource_evolution(states_per_step, env, save_path="resource_evolution.
     plt.plot(steps, resources, label='Level of ressources', color='green', linewidth=2)
     plt.xlabel("Step")
     plt.ylabel("Ressource")
-    plt.title(f"Fluctuation of ressources in the environment for agent: {agent_to_test} with empathy level: {empathy_to_test}")
+    plt.title(f"Fluctuation of ressources in the environment for agent: {agent_to_test} with empathy level: {alpha}")
     plt.ylim(0, env.initial_resources * 1.1)
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
-
-def export_general_metric_episode(input_file, output_file, episode_number):
-    equality_gini_ceoficient = gini_calculator(input_file) # measure of fairness
-    social_welfare = social_welfare_calculator(input_file) # sum of marginal gain
-    sustainability = sustainability_calculator(input_file) # average rate of the decision to take a ressource
-
-    fieldnames = ['episode_number', 'equality_gini_ceoficient', 'social_welfare', 'sustainability']
-
-    new_line = [episode_number, equality_gini_ceoficient, social_welfare, sustainability]
-
-    with open(output_file, mode='a', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, filednames=fieldnames)
-        writer.writerows(new_line)
-
-
-def gini_calculator(data_file):
-    ...
-
-
-def social_welfare_calculator(data_file):
-    ...
-
-
-def sustainability_calculator(data_file):
-    ...
 
 
 def save_q_table_detailed_to_csv(agents, filename="q_table_detailed.csv"):
@@ -228,15 +225,40 @@ def save_q_table_detailed_to_csv(agents, filename="q_table_detailed.csv"):
                         writer.writerow([agent_idx, state, action, value])
 
 
+def visualize_q_table(filename):
+    df = pd.read_csv(filename)
+
+    # Afficher les premières lignes
+    print(df.head())
+
+    # Afficher les valeurs pour un agent spécifique (par exemple agent 0)
+    agent_id = 0
+    df_agent = df[df['agent_id'] == agent_id]
+
+    # Visualiser la Q-table : état vs action (carte de chaleur)
+    pivot_table = df_agent.pivot(index='state', columns='action', values='expected_reward')
+
+    plt.figure(figsize=(12, 6))
+    plt.title(f"Q-table (agent {agent_id})")
+    heatmap = plt.imshow(pivot_table.fillna(0), cmap='viridis', aspect='auto')
+    plt.colorbar(heatmap, label='Expected Reward')
+    plt.xlabel("Action")
+    plt.ylabel("State")
+    plt.xticks(ticks=range(len(pivot_table.columns)), labels=pivot_table.columns)
+    plt.yticks(ticks=range(len(pivot_table.index)), labels=pivot_table.index)
+    plt.tight_layout()
+    plt.show()
+    
+
 if __name__ == '__main__':
     for episode in range(1, episodes+1):
-        states, env = run_simulation()
+        states, env, agents = run_simulation()
         filename = export_to_csv_episode_data(states,
-                                   filename=f'{episode}_simulation_data.csv')
+                                              filename=f'{episode}_simulation_data.csv')
         plot_resource_evolution(states,
                                 env)
-        # export_general_metric_episode(filename, output_file=f'{}', episode_number=episode) # à définir
 
         if agent_to_test == "QLearning":
-            save_q_table_detailed_to_csv(env.agents,
-                                         filename=f"q_table_episode_{episode}.csv") # add length of the episode / potentially do it later for data processing
+            save_q_table_detailed_to_csv(agents,
+                                         filename=f"q_table_episode_{episode}.csv")
+            visualize_q_table(f"q_table_episode_{episode}.csv")
