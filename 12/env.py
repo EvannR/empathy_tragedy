@@ -5,16 +5,37 @@ import os
 
 
 class GridMaze:
+    """
+    Base class for grid-based environments where agents can move around
+    and interact with resources.
+    """
     def __init__(self, size=4, nb_agents=1, agent_configs=None):
+        """
+        Initialize the grid environment.
+        
+        
+            size: Size of the grid (size x size)
+            nb_agents: Number of agents in the environment
+            agent_configs: Configuration parameters for each agent
+        """
         self.size = size
         self.nb_agents = nb_agents
         self.number_actions = 5  # UP, DOWN, LEFT, RIGHT, EXPLOIT
         self.actions = np.arange(self.number_actions)
+
+        # Define action names for clarity
+        self.action_names = {
+            0: "UP",
+            1: "DOWN", 
+            2: "LEFT", 
+            3: "RIGHT", 
+            4: "EXPLOIT"
+        }
         
-        # Initialisation des positions des agents
+        # Initialize agent positions
         self.agents_positions = self.initialize_positions()
         
-        # Création des agents avec leurs positions
+        # # Create agents with their position
         if agent_configs is None:
             agent_configs = [{'memory_size': 10} for _ in range(nb_agents)]
         
@@ -24,14 +45,19 @@ class GridMaze:
             memory_size = config.get('memory_size', 10)
             self.agents.append(Agent(i, self.agents_positions[i], memory_size))
         
-        # Initialisation des récompenses
-        self.rewards = np.zeros((size, size))
-
-        self.init_transitions()
-        self.time_step = 0
+       
+        self.rewards = np.zeros((size, size))  # Initialize reward grid
+        self.init_transitions()                # Initialize action transition map
+        self.time_step = 0                     # Time step counter
 
     def initialize_positions(self):
-        """Place les agents aléatoirement sur la grille."""
+        """
+        Randomly place agents on the grid ensuring no overlap.
+        
+        Returns:
+            List of (row, col) positions for each agent
+        """
+        
         positions = set()
         while len(positions) < self.nb_agents:
             i, j = np.random.randint(0, self.size, size=2)
