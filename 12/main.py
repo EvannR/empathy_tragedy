@@ -49,11 +49,12 @@ agent_to_test = "DQN"
 env_to_test = "random_Maze"
 empathy_to_test = "high_empathy"
 
-episodes = 100
-steps = 500
-nb_tests = 3
+
+episodes = 5000
+steps = 1000
+nb_tests = 1
 env_size = 6
-nb_agents = 3
+nb_agents = 5
 
 np.random.seed(42)
 
