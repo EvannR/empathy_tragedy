@@ -226,15 +226,9 @@ def save_q_table_detailed_to_csv(agents, filename="q_table_detailed.csv"):
 
 def visualize_q_table(filename):
     df = pd.read_csv(filename)
-
-    # Afficher les premières lignes
-    print(df.head())
-
-    # Afficher les valeurs pour un agent spécifique (par exemple agent 0)
     agent_id = 0
     df_agent = df[df['agent_id'] == agent_id]
 
-    # Visualiser la Q-table : état vs action (carte de chaleur)
     pivot_table = df_agent.pivot(index='state', columns='action', values='expected_reward')
 
     plt.figure(figsize=(12, 6))
@@ -313,14 +307,14 @@ if __name__ == '__main__':
     for episode_number in range(1, episodes+1):
         states, env, agents = run_simulation()
         filename_data = export_to_csv_episode_data(states,
-                                                   filename_definer(agent_to_test,
-                                                                    episode_number,
-                                                                    emotion_type,
-                                                                    see_emotions,
-                                                                    alpha,
-                                                                    beta,
-                                                                    params_DQN,
-                                                                    params_QLearning))
+                                                   filename=filename_definer(agent_to_test,
+                                                                             episode_number,
+                                                                             emotion_type,
+                                                                             see_emotions,
+                                                                             alpha,
+                                                                             beta,
+                                                                             params_DQN,
+                                                                             params_QLearning))
         plot_resource_evolution(states,
                                 env)
 
