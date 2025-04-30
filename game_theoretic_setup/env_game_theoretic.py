@@ -1,6 +1,7 @@
 import numpy as np
 from agent_policies_game_theoretic import QAgent, DQNAgent, SocialRewardCalculator
 
+
 class GameTheoreticEnv:
     """
     Multi-agent environment where each agent can exploit a shared resource or not.

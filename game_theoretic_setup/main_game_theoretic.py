@@ -250,7 +250,6 @@ def visualize_q_table(filename):
 
 
 def filename_definer(agent_type, episode_number, emotion_type, see_emotions, alpha, beta, params_DQN, params_QLearning):
-
     """
     name of the file order : 
     episode number
@@ -259,8 +258,8 @@ def filename_definer(agent_type, episode_number, emotion_type, see_emotions, alp
     see_emotions = "False" or "True"
     alpha = 1  # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
     beta = 0.3 # valuation of the last meal
-    
-    the parameters of the agents are in the order : 
+
+    the parameters of the agents are in the order :
 Params_QL
     "learning_rate"
     "gamma"
@@ -309,20 +308,19 @@ params_DQN =
 
     return filename
 
+
 if __name__ == '__main__':
     for episode_number in range(1, episodes+1):
         states, env, agents = run_simulation()
         filename_data = export_to_csv_episode_data(states,
-                                              filename = filename_definer(agent_to_test,
-                                                                          episode_number,
-                                                                          emotion_type,
-                                                                          see_emotions,
-                                                                          alpha,
-                                                                          beta,
-                                                                          params_DQN,
-                                                                          params_QLearning,
-                                              )
-
+                                                   filename_definer(agent_to_test,
+                                                                    episode_number,
+                                                                    emotion_type,
+                                                                    see_emotions,
+                                                                    alpha,
+                                                                    beta,
+                                                                    params_DQN,
+                                                                    params_QLearning))
         plot_resource_evolution(states,
                                 env)
 
