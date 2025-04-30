@@ -4,6 +4,7 @@ import numpy as np
 import csv
 import matplotlib.pyplot as plt
 import pandas as pd
+import random
 
 ##############################################################################
 agent_policy_name_to_class = {
@@ -248,11 +249,80 @@ def visualize_q_table(filename):
     plt.show()
 
 
+def filename_definer(agent_type, episode_number, emotion_type, see_emotions, alpha, beta, params_DQN, params_QLearning):
+
+    """
+    name of the file order : 
+    episode number
+    agent_to_test = "DQN" or "QLearning"
+    emotion_type = can be "average" or "vector"
+    see_emotions = "False" or "True"
+    alpha = 1  # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
+    beta = 0.3 # valuation of the last meal
+    
+    the parameters of the agents are in the order : 
+Params_QL
+    "learning_rate"
+    "gamma"
+    "epsilon"
+    "epsilon_decay"
+    "epsilon_min"
+
+params_DQN =
+    "learning_rate"
+    "gamma"
+    "epsilon"
+    "epsilon_decay"
+    "epsilon_min"
+    "batch_size"
+    "hidden_size"
+    "update_target_every"
+
+    return the filename of one episode with a random 6 int suffix
+    """
+    if agent_type == "DQN":
+        params = params_DQN
+        param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min", "batch_size", "hidden_size", "update_target_every"]
+    elif agent_type == "QLearning":
+        params = params_QLearning
+        param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min"]
+    else:
+        raise ValueError(f"Unknown agent type: {agent_type!r}")
+
+    # Ensure values appear in fixed order (no key names)
+    param_values = "_".join(str(params[key]) for key in param_order)
+
+    random_suffix = ''.join(str(random.randint(0, 9)) for _ in range(6))
+    see_emotions_str = str(see_emotions)
+
+    filename = (
+        f"results_"
+        f"{episode_number}_"
+        f"{agent_type}_"
+        f"{emotion_type}_"
+        f"{see_emotions_str}_"
+        f"{alpha}_"
+        f"{beta}_"
+        f"{param_values}_"
+        f"{random_suffix}.csv"
+    )
+
+    return filename
+
 if __name__ == '__main__':
-    for episode in range(1, episodes+1):
+    for episode_number in range(1, episodes+1):
         states, env, agents = run_simulation()
-        filename = export_to_csv_episode_data(states,
-                                              filename=f'{episode}_simulation_data.csv')
+        filename_data = export_to_csv_episode_data(states,
+                                              filename = filename_definer(agent_to_test,
+                                                                          episode_number,
+                                                                          emotion_type,
+                                                                          see_emotions,
+                                                                          alpha,
+                                                                          beta,
+                                                                          params_DQN,
+                                                                          params_QLearning,
+                                              )
+
         plot_resource_evolution(states,
                                 env)
 
