@@ -60,15 +60,20 @@ agent_params = {
 # Choice of the agent and level of empathy
 agent_to_test = "DQN"  # "DQN" or "QLearning"
 emotion_type = "average"  # can be average or vector
-see_emotions = False
+see_emotions = True
 alpha = 1  # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
 beta = 0.3  # parameter for the valuation of the last meal (higher beta = higher valuation)
+
+# Choice of emotion parameters
+smoothing_type = 'linear'  # or 'linear'
+sigmoid_gain_value = 5.0
+threshold_value = 0.7  # ratio of ressource acquisition needed for the emotion to be neutral
 
 
 ##############################################################################
 # Parameter of the episodes
 episodes = 1
-MAX_STEPS = 100000
+MAX_STEPS = 1000
 nb_tests = 3
 nb_agents = 5
 initial_amount_ressources = 3000
@@ -81,14 +86,19 @@ def initialize_agents_and_env():
     """
     Initialize a new environnement
     """
-    env = GameTheoreticEnv(nb_agents=nb_agents,
-                           env_type=environnement_type,
-                           initial_resources=initial_amount_ressources,
-                           emotion_type=emotion_type,
-                           see_emotions=see_emotions,
-                           agent_class=agent_policy_name_to_class[agent_to_test],
-                           alpha=alpha,
-                           beta=beta)
+    env = GameTheoreticEnv(
+        nb_agents=nb_agents,
+        env_type=environnement_type,
+        initial_resources=initial_amount_ressources,
+        emotion_type=emotion_type,
+        see_emotions=see_emotions,
+        agent_class=agent_policy_name_to_class[agent_to_test],
+        alpha=alpha,
+        beta=beta,
+        smoothing=smoothing_type,
+        sigmoid_gain=sigmoid_gain_value,
+        threshold=threshold_value
+    )
 
     sample_obs = env.get_observation()
     state_size = len(sample_obs[0]) if isinstance(sample_obs[0],
@@ -115,17 +125,11 @@ def run_simulation():
     env, agents = initialize_agents_and_env()
     states_per_step = []
 
-    # Initialize the environment
+    # Initial state
     obs = env.reset()
 
     for step in range(MAX_STEPS):
-        actions = []
-
-        for i, agent in enumerate(agents):
-            if isinstance(agent, QAgent):
-                actions.append(agent.select_action(obs[i]))
-            elif isinstance(agent, DQNAgent):
-                actions.append(agent.select_action(obs[i]))
+        actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
 
         next_obs, rewards, done, info = env.make_step(actions)
 
@@ -133,23 +137,22 @@ def run_simulation():
             'step': step,
             'resource': env.resource,
             'actions': actions,
-            'emotions': obs,
-            'rewards': rewards,
+            'observations': obs,
+            'rewards_total': rewards,
+            'exploitation_reward': info['exploitation_reward'],
+            'personal_reward': info['personal_satisfaction'],
+            'empathic_reward': info['empathic_reward'],
+            'emotions': info['emotions'],
+            'internal_total_reward': info['internal_total_reward'],
             'done': done
         }
 
         states_per_step.append(state_snapshot)
         obs = next_obs
 
+        # learning step for each agent
         for i, agent in enumerate(agents):
-            if isinstance(agent, QAgent):
-                agent.step(next_state=next_obs[i],
-                           reward=rewards[i],
-                           done=done)
-            elif isinstance(agent, DQNAgent):
-                agent.step(next_state=next_obs[i],
-                           reward=rewards[i],
-                           done=done)
+            agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
 
         if done:
             break
@@ -159,14 +162,19 @@ def run_simulation():
 
 def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'):
     """
-    Function used to create the data for each simulation
+    Export episode data to CSV with extended reward components.
     """
-
     with open(filename, mode='w', newline='') as csvfile:
+        # Define headers
         fieldnames = ['step', 'resource'] + \
-                     [f'emotion_{i}' for i in range(len(states_per_step[0]['emotions']))] + \
-                     [f'reward_{i}' for i in range(len(states_per_step[0]['rewards']))] + \
-                     [f'action_{i}' for i in range(len(states_per_step[0]['actions']))]
+                     [f'observation_{i}' for i in range(len(states_per_step[0]['observations']))] + \
+                     [f'action_{i}' for i in range(len(states_per_step[0]['actions']))] + \
+                     [f'reward_total_{i}' for i in range(len(states_per_step[0]['rewards_total']))] + \
+                     [f'exploit_reward_{i}' for i in range(len(states_per_step[0]['exploitation_reward']))] + \
+                     [f'personal_reward_{i}' for i in range(len(states_per_step[0]['personal_reward']))] + \
+                     [f'empathic_reward_{i}' for i in range(len(states_per_step[0]['empathic_reward']))] + \
+                     [f'emotion_signal_{i}' for i in range(len(states_per_step[0]['emotions']))] + \
+                     [f'internal_total_{i}' for i in range(len(states_per_step[0]['internal_total_reward']))]
 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
@@ -174,14 +182,24 @@ def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'):
         for step_data in states_per_step:
             row = {
                 'step': step_data['step'],
-                'resource': step_data['resource'],
+                'resource': step_data['resource']
             }
-            for i, val in enumerate(step_data['emotions']):
-                row[f'emotion_{i}'] = val
-            for i, val in enumerate(step_data['rewards']):
-                row[f'reward_{i}'] = val
+            for i, val in enumerate(step_data['observations']):
+                row[f'observation_{i}'] = val
             for i, val in enumerate(step_data['actions']):
                 row[f'action_{i}'] = val
+            for i, val in enumerate(step_data['rewards_total']):
+                row[f'reward_total_{i}'] = val
+            for i, val in enumerate(step_data['exploitation_reward']):
+                row[f'exploit_reward_{i}'] = val
+            for i, val in enumerate(step_data['personal_reward']):
+                row[f'personal_reward_{i}'] = val
+            for i, val in enumerate(step_data['empathic_reward']):
+                row[f'empathic_reward_{i}'] = val
+            for i, val in enumerate(step_data['emotions']):
+                row[f'emotion_signal_{i}'] = val
+            for i, val in enumerate(step_data['internal_total_reward']):
+                row[f'internal_total_{i}'] = val
 
             writer.writerow(row)
 
