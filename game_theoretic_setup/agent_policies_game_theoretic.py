@@ -284,71 +284,103 @@ class DQNAgent(Agent):
 
 class SocialRewardCalculator:
     """
-    Calculate the reward on the basis of the others agent emotions and how empathic is the agent
+    Calculate rewards based on agents' consumption and configurable emotional smoothing.
     """
-    def __init__(self, nb_agents, alpha=0.5, beta=0.5):
+    def __init__(self, nb_agents, alpha=0.5, beta=0.5, threshold=0.5,
+                 smoothing='linear', sigmoid_gain=10.0):
         """
         parameters:
         -----------
         nb_agents : int
-            number of agents in the environnement
+            number of agents in the environment
         alpha : float
-            how much they value others emotions (0-1)
+            weight on others' emotions vs. personal satisfaction (0-1)
         beta : float
-            value of the last meal (0-1)
+            balance last vs. history consumption for personal satisfaction (0-1)
+        threshold : float
+            consumption rate threshold for neutral emotion (0-1)
+        smoothing : str
+            'linear' or 'sigmoid', type of mapping from rate to emotion
+        sigmoid_gain : float
+            gain ( steepness ) for sigmoid mapping
         """
         self.nb_agents = nb_agents
-        self.alpha = alpha  # empathic value
-        self.beta = beta    # balance last and other meal in history
+        self.alpha = alpha
+        self.beta = beta
+        self.threshold = threshold
+        self.smoothing = smoothing
+        self.sigmoid_gain = sigmoid_gain
+
+    def _consumption_rate(self, agent):
+        """Return average consumption rate [0,1] based on binary meal_history."""
+        if not agent.meal_history:
+            return 0.0
+        return sum(agent.meal_history) / len(agent.meal_history)
+
+    def _linear_emotion(self, rate):
+        """Linear mapping from rate to emotion [-1,1] based on threshold."""
+        t = self.threshold
+        if rate >= t:
+            return (rate - t) / (1 - t) if t < 1 else 1.0
+        else:
+            return - (t - rate) / t if t > 0 else -1.0
+
+    def _sigmoid_emotion(self, rate):
+        """Sigmoid mapping from rate to emotion [-1,1] centered at threshold."""
+        # logistic: 2/(1+exp(-g*(r-t)/(1-t))) - 1 maps rate=t -> 0, rate=1 -> +1, rate=0 -> -1
+        g = self.sigmoid_gain
+        t = self.threshold
+        # normalize rate offset by threshold, scaled by available range
+        norm = (rate - t) / (1 - t) if rate >= t else (rate - t) / t
+        exp_val = np.exp(-g * norm)
+        return 2.0 / (1.0 + exp_val) - 1.0
+
+    def emotion_from_rate(self, rate):
+        """Map a consumption rate [0,1] to emotion [-1,1] using chosen smoothing."""
+        if self.smoothing == 'sigmoid':
+            return self._sigmoid_emotion(rate)
+        else:
+            return self._linear_emotion(rate)
 
     def calculate_personal_satisfaction(self, agent):
         """
-        Calculate the emotion of the agent.
-        parameters:
-        -----------
-        agent : Agent from which we compute the satisfaction
+        Calculate personal satisfaction based on last meal and history.
+        """
+        if agent.meal_history:
+            last_meal = 1 if agent.meal_history[-1] > 0 else 0
+            history_w = sum(agent.meal_history) / len(agent.meal_history)
+        else:
+            last_meal = history_w = 0.0
+        return self.beta * last_meal + (1 - self.beta) * history_w
+
+    def calculate_emotions(self, agents):
+        """
+        Compute the emotion of each agent from their consumption rate.
 
         returns:
         --------
-        float
-            emotion of the agent
+        list of float
+            emotions in [-1,1]
         """
-
-        if len(agent.meal_history) > 0:
-            last_meal = 1 if agent.meal_history[-1] > 0 else 0
-            history_weight = sum(agent.meal_history) / len(agent.meal_history)
-        else:
-            # define value if no values in the history
-            last_meal = 0
-            history_weight = 0
-
-        satisfaction = self.beta * last_meal + (1 - self.beta) * history_weight
-
-        return satisfaction
+        return [self.emotion_from_rate(self._consumption_rate(a)) for a in agents]
 
     def calculate_rewards(self, agents):
         """
-        Compute the emotionnal reward for each agent
-
-        parameters:
-        -----------
-        agents : list
-            list of agents
+        Combine personal satisfaction and empathy into final rewards.
 
         returns:
         --------
-        list
-            list of rewards
+        list of float
+            reward for each agent
         """
-        personal_satisfactions = [self.calculate_personal_satisfaction(agent) for agent in agents]
-
+        personal = [self.calculate_personal_satisfaction(a) for a in agents]
+        emotions = self.calculate_emotions(agents)
         rewards = []
-        for idx, satisfaction in enumerate(personal_satisfactions):
-            own_satisfaction = satisfaction
 
-            others_satisfaction = np.mean([s for i, s in enumerate(personal_satisfactions) if i != idx])
-
-            emotional_reward = self.alpha * others_satisfaction + (1 - self.alpha) * own_satisfaction
-            rewards.append(emotional_reward)
+        for idx, (persat, emo) in enumerate(zip(personal, emotions)):
+            others = np.mean([personal[i] for i in range(len(agents)) if i != idx])
+            base = self.alpha * others + (1 - self.alpha) * persat
+            # integrate emotion as additive factor
+            rewards.append(base + emo)
 
         return rewards

@@ -128,9 +128,11 @@ class GameTheoreticEnv:
         # Compute social (empathic) rewards
         social = self.reward_calculator.calculate_rewards(self.agents)
         rewards = [r + s for r, s in zip(rewards, social)]
+        
         # Update shared resource
         self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
         self.time_step += 1
+        
         # Next observations
         next_obs = self.get_observation()
         done = self.resource <= 0
