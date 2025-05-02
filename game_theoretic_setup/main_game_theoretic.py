@@ -67,7 +67,7 @@ beta = 0.3  # parameter for the valuation of the last meal (higher beta = higher
 # Choice of emotion parameters
 smoothing_type = 'linear'  # or 'linear'
 sigmoid_gain_value = 5.0
-threshold_value = 0.7  # ratio of ressource acquisition needed for the emotion to be neutral
+threshold_value = 0.5  # ratio of ressource acquisition needed for the emotion to be neutral
 emotion_rounder = 1 # number of decimals of the emotion => complexity 
 
 
@@ -275,7 +275,7 @@ def visualize_q_table(filename):
     plt.show()
 
 
-def filename_definer(agent_type, episode_number, emotion_type, see_emotions, alpha, beta, params_DQN, params_QLearning):
+def filename_definer(agent_type, episode_number, emotion_type, see_emotions, alpha, beta, threshold_value, params_DQN, params_QLearning):
     """
     name of the file order : 
     episode number
@@ -284,6 +284,9 @@ def filename_definer(agent_type, episode_number, emotion_type, see_emotions, alp
     see_emotions = "False" or "True"
     alpha = 1  # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
     beta = 0.3 # valuation of the last meal
+    smoothing_type = linear or sigmoid
+    threshold_value  proportion of reward in the history necessary to have a positive emotion
+    emotion_rounder = decimale of emotions
 
     the parameters of the agents are in the order :
 Params_QL
@@ -328,6 +331,9 @@ params_DQN =
         f"{see_emotions_str}_"
         f"{alpha}_"
         f"{beta}_"
+        f"{smoothing_type}_"
+        f"{threshold_value}_"
+        f"{emotion_rounder}_"
         f"{param_values}_"
         f"{random_suffix}.csv"
     )
@@ -345,8 +351,12 @@ if __name__ == '__main__':
                                                                              see_emotions,
                                                                              alpha,
                                                                              beta,
+                                                                             smoothing_type,
+                                                                             threshold_value,
+                                                                             emotion_rounder,
                                                                              params_DQN,
-                                                                             params_QLearning))
+                                                                             params_QLearning,
+                                                                             threshold_value))
         plot_resource_evolution(states,
                                 env)
 
