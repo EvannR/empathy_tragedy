@@ -13,13 +13,14 @@ class GameTheoreticEnv:
                  env_type="deterministic",
                  emotion_type="average",
                  see_emotions=True,
-                 alpha=0.5, 
-                 beta=0.5, 
+                 alpha=0.5,
+                 beta=0.5,
                  agent_class=DQNAgent,
                  agent_configs=None,
                  threshold=0.7,
                  smoothing='linear',
-                 sigmoid_gain=10.0):
+                 sigmoid_gain=10.0,
+                 round_emotions=None):
 
         # Environment settings
         self.nb_agents = nb_agents
@@ -32,6 +33,7 @@ class GameTheoreticEnv:
         self.beta = beta                      # weight of last vs history
         self.number_actions = 2               # 0: Not Exploit, 1: Exploit
         self.actions = np.arange(self.number_actions)
+        self.round_emotions = round_emotions
 
         # Agent setup
         self.agent_class = agent_class
@@ -74,38 +76,50 @@ class GameTheoreticEnv:
             self.agents.append(agent)
 
     def reset(self):
-        """Reset environment to start a new episode."""
         self.resource = self.initial_resources
         self.time_step = 0
-        # Recreate agents to clear internal states
-        self._init_agents()
-        # Initial observation and agent episode start
+
         obs = self.get_observation()
-        for agent in self.agents:
-            agent.start_episode(obs)
-            if hasattr(agent, 'memory'):  # clear DQN replay buffer
+
+        for idx, agent in enumerate(self.agents):
+            agent.reset(observation=obs[idx])
+
+            if hasattr(agent, 'memory'):
                 agent.memory.buffer.clear()
+
         return obs
 
     def get_observation(self):
-        """Return list of observations for each agent."""
+        """
+        Return list of observations for each agent: only others’ emotions.
+        Can either return an average or vector emotion depending on self.emotion_type
+        """
+
+        # if not empathy => null scalar
         if not self.see_emotions:
-            # Agents have no emotional info
-            return [np.zeros(self.state_size, dtype=float) for _ in range(self.nb_agents)]
+            return [np.zeros(self.state_size, dtype=float)
+                    for _ in range(self.nb_agents)]
 
-        # Compute each agent's personal satisfaction
-        emotions = np.array([
-            self.reward_calculator.calculate_personal_satisfaction(agent)
-            for agent in self.agents
-        ], dtype=float)
+        # calculation of all agents emotion
+        emotions = self.reward_calculator.calculate_emotions(self.agents)
 
-        if self.emotion_type == "average":
-            avg = np.mean(emotions)
-            return [np.array([avg], dtype=float) for _ in range(self.nb_agents)]
-        elif self.emotion_type == "vector":
-            return [emotions.copy() for _ in range(self.nb_agents)]
-        else:
-            raise ValueError(f"Unsupported emotion_type: {self.emotion_type}")
+        if self.round_emotions is not None:
+            emotions = np.round(emotions, self.round_emotions)
+        observations = []
+
+        for i in range(self.nb_agents):
+            other_emotions = [e for j, e in enumerate(emotions) if j != i]
+
+            if self.emotion_type == "average":
+                obs = np.array([np.mean(other_emotions)], dtype=float)
+            elif self.emotion_type == "vector":
+                obs = np.array(other_emotions, dtype=float)
+            else:
+                raise ValueError(f"Unknown emotion_type: {self.emotion_type}")
+
+            observations.append(obs)
+
+        return observations
 
     def make_step(self, actions):
         """
@@ -115,7 +129,7 @@ class GameTheoreticEnv:
         """
         consumed = 0
         immediate_rewards = []
-    
+
         for idx, act in enumerate(actions):
             reward = 0.0
             success = False
@@ -128,32 +142,34 @@ class GameTheoreticEnv:
                 if success:
                     reward = 1.0
                     consumed += 1
-    
+
             if hasattr(self.agents[idx], 'record_meal'):
                 self.agents[idx].record_meal(success, reward)
             immediate_rewards.append(reward)
-    
-        # Calculate components from the reward calculator
-        emotions, personal, empathic, total = self.reward_calculator.calculate_rewards(self.agents)
-    
-        # Combine exploitation reward with internal reward system (personal + empathic)
-        combined_rewards = [im + tot for im, tot in zip(immediate_rewards, total)]
-    
-        # Update environment state
+
+        emotions, personal_reward, empathic_reward, total = self.reward_calculator.calculate_rewards(self.agents)
+
+        # Calculation of the reward with the alpha parameter
+        combined_rewards = [
+            self.alpha * empathic_reward[i] + (1.0 - self.alpha) * personal_reward[i]
+            for i in range(self.nb_agents)
+        ]
+
+        # Update of the environment
         self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
         self.time_step += 1
         next_obs = self.get_observation()
         done = self.resource <= 0
-    
+
         info = {
             'emotions': emotions,
-            'personal_satisfaction': personal,
-            'empathic_reward': empathic,
+            'personal_satisfaction': personal_reward,
+            'empathic_reward': empathic_reward,
             'internal_total_reward': total,
             'exploitation_reward': immediate_rewards,
             'combined_reward': combined_rewards
         }
-    
+
         return next_obs, combined_rewards, done, info
 
     def get_agent_meal_stats(self, agent_idx):

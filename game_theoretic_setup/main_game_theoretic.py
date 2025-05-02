@@ -68,6 +68,7 @@ beta = 0.3  # parameter for the valuation of the last meal (higher beta = higher
 smoothing_type = 'linear'  # or 'linear'
 sigmoid_gain_value = 5.0
 threshold_value = 0.7  # ratio of ressource acquisition needed for the emotion to be neutral
+emotion_rounder = 1 # number of decimals of the emotion => complexity 
 
 
 ##############################################################################
@@ -97,12 +98,19 @@ def initialize_agents_and_env():
         beta=beta,
         smoothing=smoothing_type,
         sigmoid_gain=sigmoid_gain_value,
-        threshold=threshold_value
+        threshold=threshold_value,
+        round_emotions=emotion_rounder
     )
 
-    sample_obs = env.get_observation()
-    state_size = len(sample_obs[0]) if isinstance(sample_obs[0],
-                                                  (list, np.ndarray)) else 1
+    if not see_emotions:
+        state_size = 1
+    elif emotion_type == "average":
+        state_size = 1
+    elif emotion_type == "vector":
+        state_size = nb_agents - 1
+    else:
+        raise ValueError("Unknown emotion_type")
+ 
     action_size = env.number_actions
 
     agents = []
@@ -162,44 +170,50 @@ def run_simulation():
 
 def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'):
     """
-    Export episode data to CSV with extended reward components.
+    Export episode data to CSV with one line per step, including for each agent:
+    - current resource level
+    - observation (emotion)
+    - action selected
+    - personal_reward
+    - empathic_reward
+    - combined_reward (total internal reward)
     """
-    with open(filename, mode='w', newline='') as csvfile:
-        # Define headers
-        fieldnames = ['step', 'resource'] + \
-                     [f'observation_{i}' for i in range(len(states_per_step[0]['observations']))] + \
-                     [f'action_{i}' for i in range(len(states_per_step[0]['actions']))] + \
-                     [f'reward_total_{i}' for i in range(len(states_per_step[0]['rewards_total']))] + \
-                     [f'exploit_reward_{i}' for i in range(len(states_per_step[0]['exploitation_reward']))] + \
-                     [f'personal_reward_{i}' for i in range(len(states_per_step[0]['personal_reward']))] + \
-                     [f'empathic_reward_{i}' for i in range(len(states_per_step[0]['empathic_reward']))] + \
-                     [f'emotion_signal_{i}' for i in range(len(states_per_step[0]['emotions']))] + \
-                     [f'internal_total_{i}' for i in range(len(states_per_step[0]['internal_total_reward']))]
+    import csv
 
+    # Number of agents
+    n_agents = len(states_per_step[0]['observations'])
+
+    # Dynamically construct CSV headers
+    fieldnames = ['step', 'resource']
+    for i in range(n_agents):
+        fieldnames += [
+            f'observation_{i}',
+            f'action_{i}',
+            f'personal_reward_{i}',
+            f'empathic_reward_{i}',
+            f'combined_reward_{i}'
+        ]
+
+    with open(filename, mode='w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
         for step_data in states_per_step:
-            row = {
-                'step': step_data['step'],
-                'resource': step_data['resource']
-            }
-            for i, val in enumerate(step_data['observations']):
-                row[f'observation_{i}'] = val
-            for i, val in enumerate(step_data['actions']):
-                row[f'action_{i}'] = val
-            for i, val in enumerate(step_data['rewards_total']):
-                row[f'reward_total_{i}'] = val
-            for i, val in enumerate(step_data['exploitation_reward']):
-                row[f'exploit_reward_{i}'] = val
-            for i, val in enumerate(step_data['personal_reward']):
-                row[f'personal_reward_{i}'] = val
-            for i, val in enumerate(step_data['empathic_reward']):
-                row[f'empathic_reward_{i}'] = val
-            for i, val in enumerate(step_data['emotions']):
-                row[f'emotion_signal_{i}'] = val
-            for i, val in enumerate(step_data['internal_total_reward']):
-                row[f'internal_total_{i}'] = val
+            row = {'step': step_data['step'], 'resource': step_data.get('resource', None)}
+            obs = step_data['observations']
+            acts = step_data['actions']
+            personal = step_data['personal_reward']
+            empathic = step_data['empathic_reward']
+            # combined reward stored as 'internal_total_reward'
+            combined = step_data.get('combined_reward', step_data.get('internal_total_reward', []))
+
+            for i in range(n_agents):
+                row[f'observation_{i}'] = obs[i]
+                row[f'action_{i}'] = acts[i]
+                row[f'personal_reward_{i}'] = personal[i]
+                row[f'empathic_reward_{i}'] = empathic[i]
+                # safe fallback to 0 if missing
+                row[f'combined_reward_{i}'] = combined[i] if i < len(combined) else None
 
             writer.writerow(row)
 

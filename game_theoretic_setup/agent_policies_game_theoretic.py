@@ -26,11 +26,10 @@ class Agent:
         """Sends the reward in the historic"""
         return sum(self.meal_history)
 
-    def reset(self):
-        """Reseting the agent for a new episode"""
-        self.state = self.env.reset()
-        self.meal_history = deque([0] * self.memory_size, maxlen=self.memory_size)
-        self.total_meals = 0
+    def reset(self, observation=None):
+        self.current_state = observation
+        self.previous_action = None
+        self.meal_history = deque([0]*10, maxlen=10)
 
 
 Experience = namedtuple('Experience', ['state',
@@ -354,24 +353,25 @@ class SocialRewardCalculator:
     def calculate_rewards(self, agents):
         """
         Compute and return:
-          - emotions: list of emotion signals ([-1,1])
-          - personal: list of personal satisfaction values ([0,1])
-          - empathic: list of empathic rewards from observing others ([0,1])
-          - total: list of total rewards = personal + empathic
-
-        returns:
-        --------
-        tuple (emotions, personal, empathic, total)
+        - emotions   : list of emotion signals ([-1,1])
+        - personal   : list of personal satisfaction values ([0,1])
+        - empathic   : list of empathic signals ([-1,1])
+        - total      : list of total rewards (personal + empathic)
         """
-        # personal satisfaction
         personal = [self.calculate_personal_satisfaction(a) for a in agents]
-        # emotion signals (not used in reward directly)
+
         emotions = self.calculate_emotions(agents)
-        # empathic reward: mix of others' and own satisfaction
-        empathic = []
-        for idx, persat in enumerate(personal):
-            others = np.mean([personal[i] for i in range(self.nb_agents) if i != idx])
-            empathic.append(self.alpha * others + (1 - self.alpha) * persat)
-        # total reward inside calculator = personal + empathic
-        total = [p + e for p, e in zip(personal, empathic)]
-        return emotions, personal, empathic, total
+
+        # 3) empathic reward
+        empathic_reward = []
+        for idx, emo in enumerate(emotions):
+            # moyenne des émotions des autres agents
+            others_emo = np.mean([e for j, e in enumerate(emotions) if j != idx])
+            # mélange entre sa propre émotion et celle des autres
+            empathic_reward.append(others_emo)
+
+        # 4) total reward: on garde la satisfaction perso + empathic reward
+        total = [pers + emp for pers, emp in zip(personal, empathic_reward)]
+
+        return emotions, personal, empathic_reward, total
+
