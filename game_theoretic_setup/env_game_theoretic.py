@@ -108,53 +108,53 @@ class GameTheoreticEnv:
             raise ValueError(f"Unsupported emotion_type: {self.emotion_type}")
 
     def make_step(self, actions):
-    """
-    Execute one timestep: agents choose actions, environment updates.
-    actions: list of 0/1 for each agent.
-    Returns: next_observations, rewards, done, info
-    """
-    consumed = 0
-    immediate_rewards = []
-
-    for idx, act in enumerate(actions):
-        reward = 0.0
-        success = False
-        if act == 1 and self.resource > 0:
-            if self.env_type == "stochastic":
-                prob = self.resource / self.initial_resources
-                success = np.random.rand() < prob
-            else:
-                success = True
-            if success:
-                reward = 1.0
-                consumed += 1
-
-        if hasattr(self.agents[idx], 'record_meal'):
-            self.agents[idx].record_meal(success, reward)
-        immediate_rewards.append(reward)
-
-    # Calculate components from the reward calculator
-    emotions, personal, empathic, total = self.reward_calculator.calculate_rewards(self.agents)
-
-    # Combine exploitation reward with internal reward system (personal + empathic)
-    combined_rewards = [im + tot for im, tot in zip(immediate_rewards, total)]
-
-    # Update environment state
-    self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
-    self.time_step += 1
-    next_obs = self.get_observation()
-    done = self.resource <= 0
-
-    info = {
-        'emotions': emotions,
-        'personal_satisfaction': personal,
-        'empathic_reward': empathic,
-        'internal_total_reward': total,
-        'exploitation_reward': immediate_rewards,
-        'combined_reward': combined_rewards
-    }
-
-    return next_obs, combined_rewards, done, info
+        """
+        Execute one timestep: agents choose actions, environment updates.
+        actions: list of 0/1 for each agent.
+        Returns: next_observations, rewards, done, info
+        """
+        consumed = 0
+        immediate_rewards = []
+    
+        for idx, act in enumerate(actions):
+            reward = 0.0
+            success = False
+            if act == 1 and self.resource > 0:
+                if self.env_type == "stochastic":
+                    prob = self.resource / self.initial_resources
+                    success = np.random.rand() < prob
+                else:
+                    success = True
+                if success:
+                    reward = 1.0
+                    consumed += 1
+    
+            if hasattr(self.agents[idx], 'record_meal'):
+                self.agents[idx].record_meal(success, reward)
+            immediate_rewards.append(reward)
+    
+        # Calculate components from the reward calculator
+        emotions, personal, empathic, total = self.reward_calculator.calculate_rewards(self.agents)
+    
+        # Combine exploitation reward with internal reward system (personal + empathic)
+        combined_rewards = [im + tot for im, tot in zip(immediate_rewards, total)]
+    
+        # Update environment state
+        self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
+        self.time_step += 1
+        next_obs = self.get_observation()
+        done = self.resource <= 0
+    
+        info = {
+            'emotions': emotions,
+            'personal_satisfaction': personal,
+            'empathic_reward': empathic,
+            'internal_total_reward': total,
+            'exploitation_reward': immediate_rewards,
+            'combined_reward': combined_rewards
+        }
+    
+        return next_obs, combined_rewards, done, info
 
     def get_agent_meal_stats(self, agent_idx):
         """Return recent and total meals for one agent."""
