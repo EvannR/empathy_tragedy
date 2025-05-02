@@ -1,24 +1,27 @@
 import numpy as np
 from agent_policies_game_theoretic import QAgent, DQNAgent, SocialRewardCalculator
 
+
 class GameTheoreticEnv:
     """
     Multi-agent environment where each agent can exploit a shared resource or not.
     Agents can optionally observe emotional states of others (average or full vector), or see nothing.
     """
-    def __init__(
-        self,
-        nb_agents,
-        initial_resources=100,
-        regen_rate=1.0,
-        env_type="deterministic",
-        emotion_type="average",
-        see_emotions=True,
-        alpha=0.5,
-        beta=0.5,
-        agent_class=QAgent,
-        agent_configs=None
-    ):
+    def __init__(self, nb_agents,
+                 initial_resources=100,
+                 regen_rate=1.0,
+                 env_type="deterministic",
+                 emotion_type="average",
+                 see_emotions=True,
+                 alpha=0.5,
+                 beta=0.5,
+                 agent_class=DQNAgent,
+                 agent_configs=None,
+                 threshold=0.7,
+                 smoothing='linear',
+                 sigmoid_gain=10.0,
+                 round_emotions=None):
+
         # Environment settings
         self.nb_agents = nb_agents
         self.initial_resources = initial_resources
@@ -30,13 +33,20 @@ class GameTheoreticEnv:
         self.beta = beta                      # weight of last vs history
         self.number_actions = 2               # 0: Not Exploit, 1: Exploit
         self.actions = np.arange(self.number_actions)
+        self.round_emotions = round_emotions
 
         # Agent setup
         self.agent_class = agent_class
         self.agent_configs = agent_configs or [{} for _ in range(nb_agents)]
 
         # Social reward calculator
-        self.reward_calculator = SocialRewardCalculator(nb_agents, alpha=alpha, beta=beta)
+        self.reward_calculator = SocialRewardCalculator(nb_agents,
+                                                        alpha=alpha,
+                                                        beta=beta,
+                                                        threshold=threshold,
+                                                        smoothing=smoothing,
+                                                        sigmoid_gain=sigmoid_gain
+                                                        )
 
         # Initialize agents and reset environment state
         self._init_agents()
@@ -66,38 +76,50 @@ class GameTheoreticEnv:
             self.agents.append(agent)
 
     def reset(self):
-        """Reset environment to start a new episode."""
         self.resource = self.initial_resources
         self.time_step = 0
-        # Recreate agents to clear internal states
-        self._init_agents()
-        # Initial observation and agent episode start
+
         obs = self.get_observation()
-        for agent in self.agents:
-            agent.start_episode(obs)
-            if hasattr(agent, 'memory'):  # clear DQN replay buffer
+
+        for idx, agent in enumerate(self.agents):
+            agent.reset(observation=obs[idx])
+
+            if hasattr(agent, 'memory'):
                 agent.memory.buffer.clear()
+
         return obs
 
     def get_observation(self):
-        """Return list of observations for each agent."""
+        """
+        Return list of observations for each agent: only others’ emotions.
+        Can either return an average or vector emotion depending on self.emotion_type
+        """
+
+        # if not empathy => null scalar
         if not self.see_emotions:
-            # Agents have no emotional info
-            return [np.zeros(self.state_size, dtype=float) for _ in range(self.nb_agents)]
+            return [np.zeros(self.state_size, dtype=float)
+                    for _ in range(self.nb_agents)]
 
-        # Compute each agent's personal satisfaction
-        emotions = np.array([
-            self.reward_calculator.calculate_personal_satisfaction(agent)
-            for agent in self.agents
-        ], dtype=float)
+        # calculation of all agents emotion
+        emotions = self.reward_calculator.calculate_emotions(self.agents)
 
-        if self.emotion_type == "average":
-            avg = np.mean(emotions)
-            return [np.array([avg], dtype=float) for _ in range(self.nb_agents)]
-        elif self.emotion_type == "vector":
-            return [emotions.copy() for _ in range(self.nb_agents)]
-        else:
-            raise ValueError(f"Unsupported emotion_type: {self.emotion_type}")
+        if self.round_emotions is not None:
+            emotions = np.round(emotions, self.round_emotions)
+        observations = []
+
+        for i in range(self.nb_agents):
+            other_emotions = [e for j, e in enumerate(emotions) if j != i]
+
+            if self.emotion_type == "average":
+                obs = np.array([np.mean(other_emotions)], dtype=float)
+            elif self.emotion_type == "vector":
+                obs = np.array(other_emotions, dtype=float)
+            else:
+                raise ValueError(f"Unknown emotion_type: {self.emotion_type}")
+
+            observations.append(obs)
+
+        return observations
 
     def make_step(self, actions):
         """
@@ -106,8 +128,8 @@ class GameTheoreticEnv:
         Returns: next_observations, rewards, done, info
         """
         consumed = 0
-        rewards = []
-        # Process individual exploitation
+        immediate_rewards = []
+
         for idx, act in enumerate(actions):
             reward = 0.0
             success = False
@@ -120,21 +142,35 @@ class GameTheoreticEnv:
                 if success:
                     reward = 1.0
                     consumed += 1
-            # Record meal history if supported
+
             if hasattr(self.agents[idx], 'record_meal'):
                 self.agents[idx].record_meal(success, reward)
-            rewards.append(reward)
-        # Compute social (empathic) rewards
-        social = self.reward_calculator.calculate_rewards(self.agents)
-        rewards = [r + s for r, s in zip(rewards, social)]
-        # Update shared resource
+            immediate_rewards.append(reward)
+
+        emotions, personal_reward, empathic_reward, total = self.reward_calculator.calculate_rewards(self.agents)
+
+        # Calculation of the reward with the alpha parameter
+        combined_rewards = [
+            self.alpha * empathic_reward[i] + (1.0 - self.alpha) * personal_reward[i]
+            for i in range(self.nb_agents)
+        ]
+
+        # Update of the environment
         self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
         self.time_step += 1
-        # Next observations
         next_obs = self.get_observation()
         done = self.resource <= 0
-        info = {}
-        return next_obs, rewards, done, info
+
+        info = {
+            'emotions': emotions,
+            'personal_satisfaction': personal_reward,
+            'empathic_reward': empathic_reward,
+            'internal_total_reward': total,
+            'exploitation_reward': immediate_rewards,
+            'combined_reward': combined_rewards
+        }
+
+        return next_obs, combined_rewards, done, info
 
     def get_agent_meal_stats(self, agent_idx):
         """Return recent and total meals for one agent."""

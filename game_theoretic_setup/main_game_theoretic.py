@@ -4,6 +4,7 @@ import numpy as np
 import csv
 import matplotlib.pyplot as plt
 import pandas as pd
+import random
 
 ##############################################################################
 agent_policy_name_to_class = {
@@ -59,15 +60,21 @@ agent_params = {
 # Choice of the agent and level of empathy
 agent_to_test = "DQN"  # "DQN" or "QLearning"
 emotion_type = "average"  # can be average or vector
-see_emotions = False
+see_emotions = True
 alpha = 1  # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
 beta = 0.3  # parameter for the valuation of the last meal (higher beta = higher valuation)
+
+# Choice of emotion parameters
+smoothing_type = 'linear'  # or 'linear'
+sigmoid_gain_value = 5.0
+threshold_value = 0.5  # ratio of ressource acquisition needed for the emotion to be neutral
+emotion_rounder = 1 # number of decimals of the emotion => complexity 
 
 
 ##############################################################################
 # Parameter of the episodes
 episodes = 1
-MAX_STEPS = 100000
+MAX_STEPS = 1000
 nb_tests = 3
 nb_agents = 5
 initial_amount_ressources = 3000
@@ -80,18 +87,30 @@ def initialize_agents_and_env():
     """
     Initialize a new environnement
     """
-    env = GameTheoreticEnv(nb_agents=nb_agents,
-                           env_type=environnement_type,
-                           initial_resources=initial_amount_ressources,
-                           emotion_type=emotion_type,
-                           see_emotions=see_emotions,
-                           agent_class=agent_policy_name_to_class[agent_to_test],
-                           alpha=alpha,
-                           beta=beta)
+    env = GameTheoreticEnv(
+        nb_agents=nb_agents,
+        env_type=environnement_type,
+        initial_resources=initial_amount_ressources,
+        emotion_type=emotion_type,
+        see_emotions=see_emotions,
+        agent_class=agent_policy_name_to_class[agent_to_test],
+        alpha=alpha,
+        beta=beta,
+        smoothing=smoothing_type,
+        sigmoid_gain=sigmoid_gain_value,
+        threshold=threshold_value,
+        round_emotions=emotion_rounder
+    )
 
-    sample_obs = env.get_observation()
-    state_size = len(sample_obs[0]) if isinstance(sample_obs[0],
-                                                  (list, np.ndarray)) else 1
+    if not see_emotions:
+        state_size = 1
+    elif emotion_type == "average":
+        state_size = 1
+    elif emotion_type == "vector":
+        state_size = nb_agents - 1
+    else:
+        raise ValueError("Unknown emotion_type")
+ 
     action_size = env.number_actions
 
     agents = []
@@ -114,17 +133,11 @@ def run_simulation():
     env, agents = initialize_agents_and_env()
     states_per_step = []
 
-    # Initialize the environment
+    # Initial state
     obs = env.reset()
 
     for step in range(MAX_STEPS):
-        actions = []
-
-        for i, agent in enumerate(agents):
-            if isinstance(agent, QAgent):
-                actions.append(agent.select_action(obs[i]))
-            elif isinstance(agent, DQNAgent):
-                actions.append(agent.select_action(obs[i]))
+        actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
 
         next_obs, rewards, done, info = env.make_step(actions)
 
@@ -132,23 +145,22 @@ def run_simulation():
             'step': step,
             'resource': env.resource,
             'actions': actions,
-            'emotions': obs,
-            'rewards': rewards,
+            'observations': obs,
+            'rewards_total': rewards,
+            'exploitation_reward': info['exploitation_reward'],
+            'personal_reward': info['personal_satisfaction'],
+            'empathic_reward': info['empathic_reward'],
+            'emotions': info['emotions'],
+            'internal_total_reward': info['internal_total_reward'],
             'done': done
         }
 
         states_per_step.append(state_snapshot)
         obs = next_obs
 
+        # learning step for each agent
         for i, agent in enumerate(agents):
-            if isinstance(agent, QAgent):
-                agent.step(next_state=next_obs[i],
-                           reward=rewards[i],
-                           done=done)
-            elif isinstance(agent, DQNAgent):
-                agent.step(next_state=next_obs[i],
-                           reward=rewards[i],
-                           done=done)
+            agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
 
         if done:
             break
@@ -158,29 +170,50 @@ def run_simulation():
 
 def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'):
     """
-    Function used to create the data for each simulation
+    Export episode data to CSV with one line per step, including for each agent:
+    - current resource level
+    - observation (emotion)
+    - action selected
+    - personal_reward
+    - empathic_reward
+    - combined_reward (total internal reward)
     """
+    import csv
+
+    # Number of agents
+    n_agents = len(states_per_step[0]['observations'])
+
+    # Dynamically construct CSV headers
+    fieldnames = ['step', 'resource']
+    for i in range(n_agents):
+        fieldnames += [
+            f'observation_{i}',
+            f'action_{i}',
+            f'personal_reward_{i}',
+            f'empathic_reward_{i}',
+            f'combined_reward_{i}'
+        ]
 
     with open(filename, mode='w', newline='') as csvfile:
-        fieldnames = ['step', 'resource'] + \
-                     [f'emotion_{i}' for i in range(len(states_per_step[0]['emotions']))] + \
-                     [f'reward_{i}' for i in range(len(states_per_step[0]['rewards']))] + \
-                     [f'action_{i}' for i in range(len(states_per_step[0]['actions']))]
-
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
         for step_data in states_per_step:
-            row = {
-                'step': step_data['step'],
-                'resource': step_data['resource'],
-            }
-            for i, val in enumerate(step_data['emotions']):
-                row[f'emotion_{i}'] = val
-            for i, val in enumerate(step_data['rewards']):
-                row[f'reward_{i}'] = val
-            for i, val in enumerate(step_data['actions']):
-                row[f'action_{i}'] = val
+            row = {'step': step_data['step'], 'resource': step_data.get('resource', None)}
+            obs = step_data['observations']
+            acts = step_data['actions']
+            personal = step_data['personal_reward']
+            empathic = step_data['empathic_reward']
+            # combined reward stored as 'internal_total_reward'
+            combined = step_data.get('combined_reward', step_data.get('internal_total_reward', []))
+
+            for i in range(n_agents):
+                row[f'observation_{i}'] = obs[i]
+                row[f'action_{i}'] = acts[i]
+                row[f'personal_reward_{i}'] = personal[i]
+                row[f'empathic_reward_{i}'] = empathic[i]
+                # safe fallback to 0 if missing
+                row[f'combined_reward_{i}'] = combined[i] if i < len(combined) else None
 
             writer.writerow(row)
 
@@ -225,15 +258,9 @@ def save_q_table_detailed_to_csv(agents, filename="q_table_detailed.csv"):
 
 def visualize_q_table(filename):
     df = pd.read_csv(filename)
-
-    # Afficher les premières lignes
-    print(df.head())
-
-    # Afficher les valeurs pour un agent spécifique (par exemple agent 0)
     agent_id = 0
     df_agent = df[df['agent_id'] == agent_id]
 
-    # Visualiser la Q-table : état vs action (carte de chaleur)
     pivot_table = df_agent.pivot(index='state', columns='action', values='expected_reward')
 
     plt.figure(figsize=(12, 6))
@@ -248,11 +275,88 @@ def visualize_q_table(filename):
     plt.show()
 
 
+def filename_definer(agent_type, episode_number, emotion_type, see_emotions, alpha, beta, threshold_value, params_DQN, params_QLearning):
+    """
+    name of the file order : 
+    episode number
+    agent_to_test = "DQN" or "QLearning"
+    emotion_type = can be "average" or "vector"
+    see_emotions = "False" or "True"
+    alpha = 1  # parameter for the degree of empathy (the higher the value the higher the empathy in range 0 - 1)
+    beta = 0.3 # valuation of the last meal
+    smoothing_type = linear or sigmoid
+    threshold_value  proportion of reward in the history necessary to have a positive emotion
+    emotion_rounder = decimale of emotions
+
+    the parameters of the agents are in the order :
+Params_QL
+    "learning_rate"
+    "gamma"
+    "epsilon"
+    "epsilon_decay"
+    "epsilon_min"
+
+params_DQN =
+    "learning_rate"
+    "gamma"
+    "epsilon"
+    "epsilon_decay"
+    "epsilon_min"
+    "batch_size"
+    "hidden_size"
+    "update_target_every"
+
+    return the filename of one episode with a random 6 int suffix
+    """
+    if agent_type == "DQN":
+        params = params_DQN
+        param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min", "batch_size", "hidden_size", "update_target_every"]
+    elif agent_type == "QLearning":
+        params = params_QLearning
+        param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min"]
+    else:
+        raise ValueError(f"Unknown agent type: {agent_type!r}")
+
+    # Ensure values appear in fixed order (no key names)
+    param_values = "_".join(str(params[key]) for key in param_order)
+
+    random_suffix = ''.join(str(random.randint(0, 9)) for _ in range(6))
+    see_emotions_str = str(see_emotions)
+
+    filename = (
+        f"results_"
+        f"{episode_number}_"
+        f"{agent_type}_"
+        f"{emotion_type}_"
+        f"{see_emotions_str}_"
+        f"{alpha}_"
+        f"{beta}_"
+        f"{smoothing_type}_"
+        f"{threshold_value}_"
+        f"{emotion_rounder}_"
+        f"{param_values}_"
+        f"{random_suffix}.csv"
+    )
+
+    return filename
+
+
 if __name__ == '__main__':
-    for episode in range(1, episodes+1):
+    for episode_number in range(1, episodes+1):
         states, env, agents = run_simulation()
-        filename = export_to_csv_episode_data(states,
-                                              filename=f'{episode}_simulation_data.csv')
+        filename_data = export_to_csv_episode_data(states,
+                                                   filename=filename_definer(agent_to_test,
+                                                                             episode_number,
+                                                                             emotion_type,
+                                                                             see_emotions,
+                                                                             alpha,
+                                                                             beta,
+                                                                             smoothing_type,
+                                                                             threshold_value,
+                                                                             emotion_rounder,
+                                                                             params_DQN,
+                                                                             params_QLearning,
+                                                                             threshold_value))
         plot_resource_evolution(states,
                                 env)
 
