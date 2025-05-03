@@ -151,7 +151,7 @@ def run_simulation():
             'personal_reward': info['personal_satisfaction'],
             'empathic_reward': info['empathic_reward'],
             'emotions': info['emotions'],
-            'internal_total_reward': info['internal_total_reward'],
+            'combined_reward': info['combined_reward'],
             'done': done
         }
 
@@ -205,7 +205,7 @@ def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'):
             personal = step_data['personal_reward']
             empathic = step_data['empathic_reward']
             # combined reward stored as 'internal_total_reward'
-            combined = step_data.get('combined_reward', step_data.get('internal_total_reward', []))
+            combined = step_data.get('combined_reward', [])
 
             for i in range(n_agents):
                 row[f'observation_{i}'] = obs[i]
@@ -275,7 +275,17 @@ def visualize_q_table(filename):
     plt.show()
 
 
-def filename_definer(agent_type, episode_number, emotion_type, see_emotions, alpha, beta, threshold_value, params_DQN, params_QLearning):
+def filename_definer(agent_type,
+                     episode_number,
+                     emotion_type,
+                     see_emotions,
+                     alpha,
+                     beta,
+                     smoothing_type,
+                     threshold_value,
+                     emotion_rounder,
+                     params_DQN,
+                     params_QLearning):
     """
     name of the file order : 
     episode number
@@ -345,18 +355,20 @@ if __name__ == '__main__':
     for episode_number in range(1, episodes+1):
         states, env, agents = run_simulation()
         filename_data = export_to_csv_episode_data(states,
-                                                   filename=filename_definer(agent_to_test,
-                                                                             episode_number,
-                                                                             emotion_type,
-                                                                             see_emotions,
-                                                                             alpha,
-                                                                             beta,
-                                                                             smoothing_type,
-                                                                             threshold_value,
-                                                                             emotion_rounder,
-                                                                             params_DQN,
-                                                                             params_QLearning,
-                                                                             threshold_value))
+                                                   filename=filename_definer(agent_type=agent_to_test,
+                                                                             episode_number=episode_number,
+                                                                             emotion_type=emotion_type,
+                                                                             see_emotions=see_emotions,
+                                                                             alpha=alpha,
+                                                                             beta=beta,
+                                                                             smoothing_type=smoothing_type,
+                                                                             threshold_value=threshold_value,
+                                                                             emotion_rounder=emotion_rounder,
+                                                                             params_DQN=params_DQN,
+                                                                             params_QLearning=params_QLearning
+                                                                             )
+                                                        )
+
         plot_resource_evolution(states,
                                 env)
 

@@ -147,13 +147,7 @@ class GameTheoreticEnv:
                 self.agents[idx].record_meal(success, reward)
             immediate_rewards.append(reward)
 
-        emotions, personal_reward, empathic_reward, total = self.reward_calculator.calculate_rewards(self.agents)
-
-        # Calculation of the reward with the alpha parameter
-        combined_rewards = [
-            self.alpha * empathic_reward[i] + (1.0 - self.alpha) * personal_reward[i]
-            for i in range(self.nb_agents)
-        ]
+        emotions, personal_reward, empathic_reward, total_reward = self.reward_calculator.calculate_rewards(self.agents)
 
         # Update of the environment
         self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
@@ -165,12 +159,11 @@ class GameTheoreticEnv:
             'emotions': emotions,
             'personal_satisfaction': personal_reward,
             'empathic_reward': empathic_reward,
-            'internal_total_reward': total,
             'exploitation_reward': immediate_rewards,
-            'combined_reward': combined_rewards
+            'combined_reward': total_reward
         }
 
-        return next_obs, combined_rewards, done, info
+        return next_obs, total_reward, done, info
 
     def get_agent_meal_stats(self, agent_idx):
         """Return recent and total meals for one agent."""

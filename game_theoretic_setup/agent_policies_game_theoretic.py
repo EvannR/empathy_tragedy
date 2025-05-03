@@ -367,11 +367,11 @@ class SocialRewardCalculator:
         for idx, emo in enumerate(emotions):
             # moyenne des émotions des autres agents
             others_emo = np.mean([e for j, e in enumerate(emotions) if j != idx])
-            # mélange entre sa propre émotion et celle des autres
+            # formation of the list of empathic reward
             empathic_reward.append(others_emo)
 
         # 4) total reward: on garde la satisfaction perso + empathic reward
-        total = [pers + emp for pers, emp in zip(personal, empathic_reward)]
+        total = [(1 - self.alpha) * pers + self.alpha * emp for pers, emp in zip(personal, empathic_reward)]
 
         return emotions, personal, empathic_reward, total
 
