@@ -305,29 +305,88 @@ class SocialRewardCalculator:
     alpha: weight between own satisfaction and others' satisfaction
     beta: weight between immediate satisfaction and historical satisfaction
     """
-    def __init__(self, nb_agents, alpha=0.5, beta=0.5):
-        self.nb_agents = nb_agents
-        self.alpha = alpha  # Balance between self and others (higher = more selfish)
-        self.beta = beta    # Balance between immediate and historical (higher = more immediate)
-
-    def calculate_personal_satisfaction(self, agent):
-        """Calculate personal satisfaction based on recent meal history"""
-        last_meal = 1 if agent.meal_history[-1] > 0 else 0
-        history_weight = sum(agent.meal_history) / len(agent.meal_history)
-        return self.beta * last_meal + (1 - self.beta) * history_weight
-
-    def calculate_rewards(self, agents):
-        """Calculate social rewards for all agents"""
-        personal_satisfactions = [self.calculate_personal_satisfaction(agent) for agent in agents]
-        rewards = []
+    def __init__(self, 
+                 nb_agents, 
+                 alpha=0.5, 
+                 beta=0.5, 
+                 threshold = 0.7,
+                 smoothing = 'linear',
+                 sigmoid_gain = 10):
         
-        for idx, satisfaction in enumerate(personal_satisfactions):
-            own_satisfaction = satisfaction
-            # Average satisfaction of all other agents
-            others_satisfaction = np.mean([s for i, s in enumerate(personal_satisfactions) if i != idx])
-            
-            # Combine own and others' satisfaction based on alpha
-            emotional_reward = self.alpha * own_satisfaction + (1 - self.alpha) * others_satisfaction
-            rewards.append(emotional_reward)
-            
-        return rewards
+
+        self.nb_agents = nb_agents
+        self.alpha = alpha  
+        self.beta = beta 
+        self.threshold = threshold
+        self.smoothing = smoothing
+        self.sigmoid_gain = sigmoid_gain  
+
+
+    def consumption_rate(self,agent): 
+        """return average consumption [0,1] based on meal_history"""
+        if not agent.meal_history: 
+            return 0.0 
+        return sum(agent.meal_history)/len(agent.meal_history)
+    
+    def linear_emotions(self,rate):
+         """Linear mapping from rate to emotion signal [-1,1] based on threshold."""
+         threshold = self.threshold
+         if rate >= threshold :
+             if threshold < 1 :  
+                return (rate - threshold)/( 1-threshold)
+             else : 
+                 return 1    
+         return - (threshold - rate )/threshold if threshold > 0 else -1 
+             
+def sigmoid_emotion(self, rate):
+        """Sigmoid mapping from rate to emotion signal [-1,1] centered at threshold."""
+        g = self.sigmoid_gain
+        t = self.threshold
+        norm = (rate - t) / (1 - t) if rate >= t else (rate - t) / t
+        exp_val = np.exp(-g * norm)
+        return 2.0 / (1.0 + exp_val) - 1.0
+
+def emotion_from_rate(self, rate):
+        """Compute emotion signal from consumption rate using smoothing."""
+        if self.smoothing == 'sigmoid':
+            return self.sigmoid_emotion(rate)
+        return self.linear_emotion(rate)
+
+def calculate_personal_satisfaction(self, agent):
+        """Compute personal satisfaction from last meal and history."""
+        if agent.meal_history:
+            last = 1.0 if agent.meal_history[-1] > 0 else 0.0
+            hist = sum(agent.meal_history) / len(agent.meal_history)
+        else:
+            last, hist = 0.0, 0.0
+        return self.beta * last + (1 - self.beta) * hist
+
+def calculate_emotions(self, agents):
+        """Return list of emotion signals for each agent."""
+        return [self.emotion_from_rate(self.consumption_rate(a)) for a in agents]
+
+def calculate_rewards(self, agents):
+        """
+        Compute and return:
+        - emotions   : list of emotion signals ([-1,1])
+        - personal   : list of personal satisfaction values ([0,1])
+        - empathic   : list of empathic signals ([-1,1])
+        - total      : list of total rewards (personal + empathic)
+        """
+        personal = [self.calculate_personal_satisfaction(a) for a in agents]
+
+        emotions = self.calculate_emotions(agents)
+
+        # 3) empathic reward
+        empathic_reward = []
+        for idx, emo in enumerate(emotions):
+            #  other agents mean emotion
+            others_emo = np.mean([e for j, e in enumerate(emotions) if j != idx])
+            # formation of the list of empathic reward
+            empathic_reward.append(others_emo)
+
+        # 4) total reward: we keep personal satisfaction + empathic reward
+        total = [(1 - self.alpha) * pers + self.alpha * emp for pers, emp in zip(personal, empathic_reward)]
+
+        return emotions, personal, empathic_reward, total
+

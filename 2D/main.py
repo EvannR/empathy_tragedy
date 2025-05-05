@@ -1,4 +1,4 @@
-# main.py (modifié pour utiliser agent.get_state(env))
+# 
 from agents_policies import QAgent, DQNAgent, SocialRewardCalculator
 from env import RandomizedGridMaze
 import numpy as np
@@ -428,86 +428,4 @@ def print_results_summary(results):
         for action_name, percentages in actions.items():
             print(f"  {action_name}: {percentages[last_episode]:.1f}%")
 
-
-def compare_configs(configs_to_test):
-    """
-    Run simulations with different configurations and compare results.
-    
-    Args:
-        configs_to_test: List of configuration dictionaries
-        
-    Returns:
-        Dictionary with results for each configuration
-    """
-    all_results = {}
-    
-    for idx, config in enumerate(configs_to_test):
-        config_name = config.get("name", f"Config_{idx+1}")
-        logger.info(f"\n\nRunning configuration: {config_name}")
-        
-        results = run_simulation(config)
-        all_results[config_name] = results
-        
-        plot_results(results)
-        print_results_summary(results)
-    
-    # Create comparative plots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
-    
-    for config_name, results in all_results.items():
-        ax1.plot(results['mean_rewards'], label=config_name)
-        ax2.plot(results['mean_welfare'], label=config_name)
-    
-    ax1.set_title('Comparison of Mean Episode Rewards')
-    ax1.set_xlabel('Episode')
-    ax1.set_ylabel('Reward')
-    ax1.grid(True, linestyle='--', alpha=0.7)
-    ax1.legend()
-    
-    ax2.set_title('Comparison of Social Welfare')
-    ax2.set_xlabel('Episode')
-    ax2.set_ylabel('Social Welfare')
-    ax2.grid(True, linestyle='--', alpha=0.7)
-    ax2.legend()
-    
-    plt.tight_layout()
-    plt.savefig('config_comparison.png', dpi=300)
-    logger.info("Comparison plot saved as config_comparison.png")
-    plt.show()
-    
-    return all_results
-
-
-if __name__ == "__main__":
-    # Run a single simulation with default configuration
-    logger.info("Starting simulation with default configuration")
-    results = run_simulation()
-    plot_results(results)
-    print_results_summary(results)
-    
-    # Example of comparing different configurations
-    # Uncomment to run comparative testing
-    """
-    configs_to_test = [
-        {
-            "name": "DQN_High_Empathy",
-            "agent_type": "DQN",
-            "empathy_level": "high_empathy",
-            "episodes": 100
-        },
-        {
-            "name": "DQN_Low_Empathy",
-            "agent_type": "DQN",
-            "empathy_level": "low_empathy",
-            "episodes": 100
-        },
-        {
-            "name": "QLearning_High_Empathy",
-            "agent_type": "QLearning",
-            "empathy_level": "high_empathy",
-            "episodes": 100
-        }
-    ]
-    compare_configs(configs_to_test)
-    """
 
