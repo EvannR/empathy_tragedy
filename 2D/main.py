@@ -7,17 +7,6 @@ import time
 import os
 import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("simulation.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
-
 agent_policy_name_to_class = {
     "QLearning": QAgent,
     "DQN": DQNAgent
@@ -268,16 +257,6 @@ def run_simulation(config=None):
     all_welfare = []
     all_actions = []
     
-    logger.info(f"Running {num_tests} tests with {agent_type} on {env_type}")
-    logger.info(f"Empathy: {empathy_level} (alpha={emotion_config['alpha']}, beta={emotion_config['beta']})")
-    
-    # Run multiple tests with the same configuration
-    for test in range(num_tests):
-        logger.info(f"\nTest {test+1}/{num_tests}")
-        results = run_single_test(agent_class, env_class, agent_config, env_config, emotion_config)
-        all_rewards.append(results['episode_rewards'])
-        all_welfare.append(results['social_welfare'])
-        all_actions.append(results['actions'])
     
     # Calculate statistics across all tests
     mean_rewards = np.mean(all_rewards, axis=0)
@@ -362,7 +341,7 @@ def plot_results(results):
     # Save figure
     filename = f'results_{agent_type}_{empathy_level}_{episodes}_episodes.png'
     plt.savefig(filename, dpi=300)
-    logger.info(f"Plot saved as {filename}")
+   
     
     # Optional: show figure
     plt.show()
