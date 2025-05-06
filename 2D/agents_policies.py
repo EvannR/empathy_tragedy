@@ -101,7 +101,7 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-class QAgent:
+class QAgent():
     """
     Q-Learning agent that uses a table to store action values
     """

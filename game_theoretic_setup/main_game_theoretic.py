@@ -6,6 +6,29 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import random
 
+############################### TO DO ###############################
+simulation_number = 20 # number of rounds (different agents)
+episode_number = 100 # number of ressource / environment reset for same agents
+for simulation in range(simulation_number): # one CSV per simulation: as many rows as episodes one row = 1 episode (number, statistics, variables in an array: think about the variable)
+    """
+    We can either : 
+        ignore time dimension : only storing aggregating data (SUM: reward ; efficiency ; ...)
+            csv less big => per episode data point
+
+        more exhaustive : one row per episode - episode number ; array_reward_perso ; array_reward_empath ; array_observation ; array_ressource_number
+            allows to have the fluctuation in a single episode
+    """
+    random.seed_generator()
+    run_simulation()
+
+
+def run_simulation(episode_number):    
+    for episode in range(episode_number): 
+        run_episode()
+        reset_environment() # does not reset the agent policy, only position / number of ressources / reseting history of reward => BEWARE: DO NOT RESET POLICY
+
+        save_data() # one file per simulation
+
 ##############################################################################
 agent_policy_name_to_class = {
     "QLearning": QAgent,
@@ -79,7 +102,7 @@ nb_tests = 3
 nb_agents = 5
 initial_amount_ressources = 3000
 environnement_type = "stochastic"  # can be deterministic or stochastic #
-np.random.seed(42)
+np.random.seed(42) # interesting to save in csv_file + iterating runs over different seeds
 ##############################################################################
 
 
@@ -168,7 +191,7 @@ def run_simulation():
     return states_per_step, env, agents
 
 
-def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'):
+def export_to_csv_episode_data(states_per_step, filename='simulation_data.csv'): # ADD episode number 
     """
     Export episode data to CSV with one line per step, including for each agent:
     - current resource level
@@ -352,7 +375,7 @@ params_DQN =
 
 
 if __name__ == '__main__':
-    for episode_number in range(1, episodes+1):
+    for episode_number in range(1, episodes+1): # add a seed number to the loop + name of file (for a full simulation including multiple episodes)
         states, env, agents = run_simulation()
         filename_data = export_to_csv_episode_data(states,
                                                    filename=filename_definer(agent_type=agent_to_test,
@@ -368,6 +391,7 @@ if __name__ == '__main__':
                                                                              params_QLearning=params_QLearning
                                                                              )
                                                         )
+        # perhaps make a simulation csv_file : one csv for multiple episodes (one simulation) => change csv_builder
 
         plot_resource_evolution(states,
                                 env)
