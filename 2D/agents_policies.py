@@ -101,7 +101,11 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
+<<<<<<< Updated upstream
 class QAgent():
+=======
+class QAgent(Agent):
+>>>>>>> Stashed changes
     """
     Q-Learning agent that uses a table to store action values
     """
@@ -118,6 +122,8 @@ class QAgent():
         self.q_table = {}  # State-action value table
         self.current_state = None
         self.previous_action = None
+
+        super().__init__(agent_id)
 
     def get_state_key(self, state):
         """Convert state to hashable key for the Q-table"""
@@ -200,7 +206,7 @@ class DQNNetwork(nn.Module):
         return self.fc3(x)
 
 
-class DQNAgent:
+class DQNAgent(Agent):
     """
     Deep Q-Network agent using neural networks to approximate Q-values
     """
@@ -218,6 +224,8 @@ class DQNAgent:
         self.batch_size = batch_size
         self.update_target_every = update_target_every
         self.steps = 0
+
+        super().__init__(agent_id)
         
         # Neural networks
         self.policy_network = DQNNetwork(state_size, action_size, hidden_size)
