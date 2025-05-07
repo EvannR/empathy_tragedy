@@ -145,6 +145,8 @@ class GameTheoreticEnv:
 
             if hasattr(self.agents[idx], 'record_meal'):
                 self.agents[idx].record_meal(success, reward)
+            else:
+                raise ValueError('problem in the record meal')
             immediate_rewards.append(reward)
 
         emotions, personal_reward, empathic_reward, total_reward = self.reward_calculator.calculate_rewards(self.agents)

@@ -16,11 +16,11 @@ class Agent:
         self.meal_history = deque([0] * memory_size, maxlen=memory_size)
         self.total_meals = 0
 
-    def record_meal(self, has_eaten, reward_value=0):
-        """Register whether the agent has eater this turn (1) or not (0) at this step"""
-        self.meal_history.append(1 if has_eaten else 0)
-        if has_eaten:
-            self.total_meals += 1
+    def record_meal(self, success: bool, reward: float):
+        """Record whether the agent successfully ate in this timestep."""
+        self.meal_history.append(success)
+        if len(self.meal_history) > self.memory_size:
+            self.meal_history.pop(0)
 
     def get_recent_meals(self):
         """Sends the reward in the historic"""
@@ -267,8 +267,6 @@ class DQNAgent(Agent):
 
         action = self.select_action(next_state)
         self.previous_action = action
-
-        self.meal_history.append(action)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay

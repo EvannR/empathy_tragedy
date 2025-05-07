@@ -6,30 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import random
 
-############################### TO DO ###############################
-simulation_number = 20 # number of rounds (different agents)
-episode_number = 100 # number of ressource / environment reset for same agents
-for simulation in range(simulation_number): # one CSV per simulation: as many rows as episodes one row = 1 episode (number, statistics, variables in an array: think about the variable)
-    """
-    We can either : 
-        ignore time dimension : only storing aggregating data (SUM: reward ; efficiency ; ...)
-            csv less big => per episode data point
 
-        more exhaustive : one row per episode - episode number ; array_reward_perso ; array_reward_empath ; array_observation ; array_ressource_number
-            allows to have the fluctuation in a single episode
-    """
-    random.seed_generator()
-    run_simulation()
-
-
-def run_simulation(episode_number):    
-    for episode in range(episode_number): 
-        run_episode()
-        reset_environment() # does not reset the agent policy, only position / number of ressources / reseting history of reward => BEWARE: DO NOT RESET POLICY
-
-        save_data() # one file per simulation
-
-##############################################################################
 agent_policy_name_to_class = {
     "QLearning": QAgent,
     "DQN": DQNAgent
