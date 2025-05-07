@@ -8,23 +8,25 @@ import os
 # ----------------------------------------
 # Constants for the simulation
 # ----------------------------------------
+
+
 SIMULATION_NUMBER = 2      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 3        # number of episodes per simulation
+EPISODE_NUMBER = 3         # number of episodes per simulation
 NB_AGENTS = 5
-MAX_STEPS = 500
-INITIAL_RESOURCES = 500
+MAX_STEPS = 500            # number of steps per episode
+INITIAL_RESOURCES = 500    # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
-AGENT_TO_TEST = "DQN"           # 'DQN' or 'QLearning'
-EMOTION_TYPE = "average"        # 'average' or 'vector'
-SEE_EMOTIONS = True             # whether agents observe others' emotions
-ALPHA = 1.0                     # empathy degree (0.0 - 1.0)
-BETA = 0.5                      # valuation of last meal
-SMOOTHING = 'linear'            # function transforming the meal history into an emotion : "sigmoid" OR "linear"
+AGENT_TO_TEST = "DQN"      # 'DQN' or 'QLearning'
+EMOTION_TYPE = "average"   # 'average' or 'vector'
+SEE_EMOTIONS = True        # whether agents observe others' emotions
+ALPHA = 0.5                # empathy degree (0.0 - 1.0)
+BETA = 0.5                 # valuation of last meal
+SMOOTHING = 'linear'       # function transforming the meal history into an emotion : "sigmoid" OR "linear"
 SIGMOID_GAIN = 5.0
-THRESHOLD = 0.5                 # Ratio of reward in meal history for the emotion to be neutral (lower => negative / higher => positive)
-EMOTION_ROUNDER = 2             # emotion's number of decimals
+THRESHOLD = 0.5            # Ratio of reward in meal history for the emotion to be neutral
+EMOTION_ROUNDER = 2        # emotion's number of decimals
 
 # RL agents Hyperparameters
 PARAMS_QLEARNING = {
@@ -53,6 +55,8 @@ POLICY_CLASSES = {
 # ----------------------------------------
 # Filename builder
 # ----------------------------------------
+
+
 def filename_definer(simulation_index: int, suffix: str) -> str:
     """
     Builds a filename matching the original format:
@@ -89,35 +93,38 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
         f"{suffix}.csv"
     )
 
-    version = 1  # Start version at 1
-    while os.path.exists(filename):  # Check if the file exists
-        filename = filename.replace('.csv', f'_{version}.csv')  # Add version to filename
-        version += 1  # Increment version number
+    # To ensure no file deletion
+    version = 1
+    while os.path.exists(filename):
+        filename = filename.replace('.csv', f'_{version}.csv')
+        version += 1
 
     return filename
 
 # ----------------------------------------
 # Initialization of agents and environment for a new simulation
 # ----------------------------------------
+
+
 def initialize_agents_and_env():
     """
     Create environment and agents for a new simulation.
     """
     try:
-            env = GameTheoreticEnv(
-                nb_agents=NB_AGENTS,
-                env_type=ENVIRONMENT_TYPE,
-                initial_resources=INITIAL_RESOURCES,
-                emotion_type=EMOTION_TYPE,
-                see_emotions=SEE_EMOTIONS,
-                agent_class=POLICY_CLASSES[AGENT_TO_TEST],
-                alpha=ALPHA,
-                beta=BETA,
-                smoothing=SMOOTHING,
-                sigmoid_gain=SIGMOID_GAIN,
-                threshold=THRESHOLD,
-                round_emotions=EMOTION_ROUNDER
-            )
+        env = GameTheoreticEnv(
+            nb_agents=NB_AGENTS,
+            env_type=ENVIRONMENT_TYPE,
+            initial_resources=INITIAL_RESOURCES,
+            emotion_type=EMOTION_TYPE,
+            see_emotions=SEE_EMOTIONS,
+            agent_class=POLICY_CLASSES[AGENT_TO_TEST],
+            alpha=ALPHA,
+            beta=BETA,
+            smoothing=SMOOTHING,
+            sigmoid_gain=SIGMOID_GAIN,
+            threshold=THRESHOLD,
+            round_emotions=EMOTION_ROUNDER
+        )
 
     except KeyError:
         raise ValueError(f"Invalid AGENT_TO_TEST value: {AGENT_TO_TEST}. Choose 'DQN' or 'QLearning'.")
@@ -133,10 +140,19 @@ def initialize_agents_and_env():
 # ----------------------------------------
 # Step processing
 # ----------------------------------------
+
+
 def run_step(env, agents, seed, episode, step, obs):
     """
-    Execute one step: select actions, apply to env, collect info, update agents,
-    and return the step record plus rewards arrays and next observation.
+    Execute one step:
+        select actions,
+        apply to env,
+        collect info,
+        update agents
+    Return :
+        the step record,
+        rewards arrays,
+        next observation
     """
     # Select actions
     actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
@@ -169,8 +185,10 @@ def run_step(env, agents, seed, episode, step, obs):
     return record, personal_arr, empathic_arr, combined_arr, next_obs, done
 
 # ----------------------------------------
-# Simulation logic
+# Simulation logic for one simulation with multiple episodes
 # ----------------------------------------
+
+
 def run_simulation(episode_count, simulation_index):
     """
     Runs `episode_count` episodes in one simulation,
@@ -228,12 +246,13 @@ def run_simulation(episode_count, simulation_index):
             'combined_totals': total_combined.tolist()
         })
 
-
     return detailed_data, summaries
 
 # ----------------------------------------
-# I/O Helpers
+# Functions used to write CSV 
 # ----------------------------------------
+
+
 def write_step_csv(detailed_data, simulation_index, filename=None):
     """
     Write detailed per-step data to CSV, including seed and episode.
@@ -295,6 +314,8 @@ def write_summary_csv(summaries, simulation_index, filename=None):
 # ----------------------------------------
 # Main entry
 # ----------------------------------------
+
+
 if __name__ == '__main__':
     for simulation_number in range(SIMULATION_NUMBER):
         random.seed(simulation_number + 1)
