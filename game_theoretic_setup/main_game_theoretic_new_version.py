@@ -53,55 +53,6 @@ POLICY_CLASSES = {
 }
 
 # ----------------------------------------
-# Filename builder
-# ----------------------------------------
-
-
-def filename_definer(simulation_index: int, suffix: str) -> str:
-    """
-    Builds a filename matching the original format:
-    results_<sim>_<episodes>_<agent>_<emotion>_<see_emotions>_<alpha>_<beta>_
-             <smoothing>_<threshold>_<rounder>_<params>_<random>_<suffix>.csv
-
-             To ensure not overwriting, a version number is added if a file already exists.
-    """
-    if AGENT_TO_TEST == "DQN":
-        param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min",
-                       "batch_size", "hidden_size", "update_target_every"]
-        params = PARAMS_DQN
-    else:
-        param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min"]
-        params = PARAMS_QLEARNING
-
-    param_values = "_".join(str(params[key]) for key in param_order)
-    random_suffix = ''.join(str(random.randint(0, 9)) for _ in range(6))
-    see_emotions_str = str(SEE_EMOTIONS)
-
-    filename = (
-        f"results_{simulation_index:03d}_"
-        f"{EPISODE_NUMBER}_"
-        f"{AGENT_TO_TEST}_"
-        f"{EMOTION_TYPE}_"
-        f"{see_emotions_str}_"
-        f"{ALPHA}_"
-        f"{BETA}_"
-        f"{SMOOTHING}_"
-        f"{THRESHOLD}_"
-        f"{EMOTION_ROUNDER}_"
-        f"{param_values}_"
-        f"{random_suffix}_"
-        f"{suffix}.csv"
-    )
-
-    # To ensure no file deletion
-    version = 1
-    while os.path.exists(filename):
-        filename = filename.replace('.csv', f'_{version}.csv')
-        version += 1
-
-    return filename
-
-# ----------------------------------------
 # Initialization of agents and environment for a new simulation
 # ----------------------------------------
 
@@ -249,7 +200,7 @@ def run_simulation(episode_count, simulation_index):
     return detailed_data, summaries
 
 # ----------------------------------------
-# Functions used to write CSV 
+# Functions used to write CSV
 # ----------------------------------------
 
 
@@ -310,6 +261,55 @@ def write_summary_csv(summaries, simulation_index, filename=None):
                 for i in range(NB_AGENTS)
             ], [])
             writer.writerow(row)
+
+# ----------------------------------------
+# Filename builder
+# ----------------------------------------
+
+
+def filename_definer(simulation_index: int, suffix: str) -> str:
+    """
+    Builds a filename matching the original format:
+    results_<sim>_<episodes>_<agent>_<emotion>_<see_emotions>_<alpha>_<beta>_
+             <smoothing>_<threshold>_<rounder>_<params>_<random>_<suffix>.csv
+
+             To ensure not overwriting, a version number is added if a file already exists.
+    """
+    if AGENT_TO_TEST == "DQN":
+        param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min",
+                       "batch_size", "hidden_size", "update_target_every"]
+        params = PARAMS_DQN
+    else:
+        param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min"]
+        params = PARAMS_QLEARNING
+
+    param_values = "_".join(str(params[key]) for key in param_order)
+    random_suffix = ''.join(str(random.randint(0, 9)) for _ in range(6))
+    see_emotions_str = str(SEE_EMOTIONS)
+
+    filename = (
+        f"results_{simulation_index:03d}_"
+        f"{EPISODE_NUMBER}_"
+        f"{AGENT_TO_TEST}_"
+        f"{EMOTION_TYPE}_"
+        f"{see_emotions_str}_"
+        f"{ALPHA}_"
+        f"{BETA}_"
+        f"{SMOOTHING}_"
+        f"{THRESHOLD}_"
+        f"{EMOTION_ROUNDER}_"
+        f"{param_values}_"
+        f"{random_suffix}_"
+        f"{suffix}.csv"
+    )
+
+    # To ensure no file deletion
+    version = 1
+    while os.path.exists(filename):
+        filename = filename.replace('.csv', f'_{version}.csv')
+        version += 1
+
+    return filename
 
 # ----------------------------------------
 # Main entry
