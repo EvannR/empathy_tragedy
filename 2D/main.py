@@ -98,7 +98,6 @@ def run_single_test(agent_class, env_class, agent_config, env_config, emotion_co
     social_welfare = []
     episode_actions = []  # Track action distributions
 
-    logger.info(f"Starting test with {agent_class.__name__} agents")
 
     for episode in range(env_config['episodes']):
         env.new_episode()
@@ -147,10 +146,6 @@ def run_single_test(agent_class, env_class, agent_config, env_config, emotion_co
         social_welfare.append(sum(social_rewards))
         episode_actions.append(actions_this_episode)
 
-        if episode % 10 == 0:
-            logger.info(f"Episode {episode}/{env_config.get('episodes', 100)}, "
-                       f"Reward: {episode_reward:.2f}, "
-                       f"Social Welfare: {sum(social_rewards):.2f}")
 
     return {
         'episode_rewards': episode_rewards,
@@ -365,7 +360,6 @@ def plot_results(results):
     # Save action distribution figure
     action_filename = f'action_distribution_{agent_type}_{empathy_level}.png'
     plt.savefig(action_filename, dpi=300)
-    logger.info(f"Action distribution plot saved as {action_filename}")
     
     # Optional: show figure
     plt.show()
