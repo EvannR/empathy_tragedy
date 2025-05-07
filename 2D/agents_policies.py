@@ -101,11 +101,9 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-<<<<<<< Updated upstream
-class QAgent():
-=======
+
 class QAgent(Agent):
->>>>>>> Stashed changes
+
     """
     Q-Learning agent that uses a table to store action values
     """
