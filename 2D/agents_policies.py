@@ -210,7 +210,7 @@ class DQNAgent(Agent):
     """
     def __init__(self, state_size, action_size, agent_id=0, hidden_size=64,
                  learning_rate=0.001, gamma=0.99, epsilon=1.0,
-                 epsilon_decay=0.995, epsilon_min=0.01, batch_size=64,
+                 epsilon_decay=0.995, epsilon_min=0.6, batch_size=64,
                  update_target_every=10):
         self.agent_id = agent_id
         self.state_size = state_size
