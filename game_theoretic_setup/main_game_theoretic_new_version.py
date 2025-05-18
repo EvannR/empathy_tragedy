@@ -11,10 +11,10 @@ import os
 
 
 SIMULATION_NUMBER = 2      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 3         # number of episodes per simulation
-NB_AGENTS = 5
-MAX_STEPS = 500            # number of steps per episode
-INITIAL_RESOURCES = 500    # number of ressource at the beginning of each episode
+EPISODE_NUMBER = 15         # number of episodes per simulation
+NB_AGENTS = 2
+MAX_STEPS = 300            # number of steps per episode
+INITIAL_RESOURCES = 200    # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
@@ -279,9 +279,11 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
         param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min",
                        "batch_size", "hidden_size", "update_target_every"]
         params = PARAMS_DQN
-    else:
+    elif AGENT_TO_TEST == "QLearning":
         param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min"]
         params = PARAMS_QLEARNING
+    else:
+        raise ValueError("Wrong agent type")
 
     param_values = "_".join(str(params[key]) for key in param_order)
     random_suffix = ''.join(str(random.randint(0, 9)) for _ in range(6))
@@ -318,7 +320,6 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
 
 if __name__ == '__main__':
     for simulation_number in range(SIMULATION_NUMBER):
-        random.seed(simulation_number + 1)
         np.random.seed(simulation_number + 1)
 
         detailed, summaries = run_simulation(EPISODE_NUMBER, simulation_number)

@@ -400,5 +400,3 @@ def print_results_summary(results):
         print(f"Agent {agent_idx+1}:")
         for action_name, percentages in actions.items():
             print(f"  {action_name}: {percentages[last_episode]:.1f}%")
-
-
