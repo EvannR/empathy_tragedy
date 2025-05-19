@@ -212,7 +212,7 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         filename = filename_definer(simulation_index, suffix="step_data")
 
     header = (
-        ["seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
+        ["simulation_number","seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
         [f"observation_{i}" for i in range(NB_AGENTS)] +
         [f"action_{i}" for i in range(NB_AGENTS)] +
         [f"personal_reward_{i}" for i in range(NB_AGENTS)] + 
