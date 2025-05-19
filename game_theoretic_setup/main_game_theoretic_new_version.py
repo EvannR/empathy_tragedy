@@ -322,9 +322,25 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
 
 
 if __name__ == '__main__':
+    folder_name = "results_GT"
+    os.makedirs(folder_name, exist_ok=True)
     for simulation_number in range(SIMULATION_NUMBER):
         np.random.seed(simulation_number + 1)
 
         detailed, summaries = run_simulation(EPISODE_NUMBER, simulation_number)
-        write_step_csv(detailed, simulation_number)
-        write_summary_csv(summaries, simulation_number)
+
+        step_csv_name = filename_definer(simulation_number,
+                                         suffix="step_data")
+        summary_csv_name = filename_definer(simulation_number,
+                                            suffix="episode_summary")
+        
+        step_csv_path = f"{folder_name}/{step_csv_name}"
+        summary_csv_path = f"{folder_name}/{summary_csv_name}"
+
+        write_step_csv(detailed,
+                       simulation_index=simulation_number,
+                       filename=step_csv_path)
+        
+        write_summary_csv(summaries,
+                          simulation_index=simulation_number,
+                          filename=summary_csv_path)
