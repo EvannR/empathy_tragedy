@@ -10,11 +10,11 @@ import os
 # ----------------------------------------
 
 
-SIMULATION_NUMBER = 2      # number of simulation runs (also used as seed per run)
+SIMULATION_NUMBER = 3      # number of simulation runs (also used as seed per run)
 EPISODE_NUMBER = 15         # number of episodes per simulation
 NB_AGENTS = 2
-MAX_STEPS = 300            # number of steps per episode
-INITIAL_RESOURCES = 200    # number of ressource at the beginning of each episode
+MAX_STEPS = 500            # number of steps per episode
+INITIAL_RESOURCES = 100    # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
@@ -215,9 +215,10 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         ["seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
         [f"observation_{i}" for i in range(NB_AGENTS)] +
         [f"action_{i}" for i in range(NB_AGENTS)] +
-        [f"reward_{i}" for i in range(NB_AGENTS)] +
-        [f"emotion_{i}" for i in range(NB_AGENTS)]
-        )
+        [f"personal_reward_{i}" for i in range(NB_AGENTS)] + 
+        [f"empathic_reward_{i}" for i in range(NB_AGENTS)] + 
+        [f"total_reward_{i}" for i in range(NB_AGENTS)]
+    )
 
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)
@@ -233,6 +234,7 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
                     for i in range(NB_AGENTS)
                 ], [])
                 writer.writerow(row)
+
 
 
 def write_summary_csv(summaries, simulation_index, filename=None):
