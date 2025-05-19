@@ -212,7 +212,7 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         filename = filename_definer(simulation_index, suffix="step_data")
 
     header = (
-        ["seed", "episode", "step", "resource_remaining", "initial_resources"] +
+        ["seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
         [f"observation_{i}" for i in range(NB_AGENTS)] +
         [f"action_{i}" for i in range(NB_AGENTS)] +
         [f"reward_{i}" for i in range(NB_AGENTS)] +
@@ -226,7 +226,7 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
             for record in episode_steps:
                 row = [
                     record['seed'], record['episode'],
-                    record['step'], record['resource'], INITIAL_RESOURCES
+                    record['step'], record['resource'], INITIAL_RESOURCES, MAX_STEPS
                 ] + sum([
                     [record['observations'][i], record['actions'][i],
                      record['personal'][i], record['empathic'][i], record['combined'][i]]
@@ -243,7 +243,7 @@ def write_summary_csv(summaries, simulation_index, filename=None):
         filename = filename_definer(simulation_index, suffix="episode_summary")
 
     header = (
-        ['seed', 'episode', 'total_steps', 'resource_remaining', 'initial_resources'] +
+        ['seed', 'episode', 'total_steps', 'resource_remaining', 'initial_resources', 'max_steps'] +
         [f"total_personal_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_empathic_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_combined_reward_{i}" for i in range(NB_AGENTS)]
@@ -255,7 +255,8 @@ def write_summary_csv(summaries, simulation_index, filename=None):
         for rec in summaries:
             row = [
                 rec['seed'], rec['episode'],
-                rec['total_steps'], rec['resource_remaining'], INITIAL_RESOURCES
+                rec['total_steps'], rec['resource_remaining'], 
+                INITIAL_RESOURCES, MAX_STEPS
             ] + sum([
                 [rec['personal_totals'][i], rec['empathic_totals'][i], rec['combined_totals'][i]]
                 for i in range(NB_AGENTS)
