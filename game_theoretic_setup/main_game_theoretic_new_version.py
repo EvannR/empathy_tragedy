@@ -333,14 +333,14 @@ if __name__ == '__main__':
                                          suffix="step_data")
         summary_csv_name = filename_definer(simulation_number,
                                             suffix="episode_summary")
-        
+
         step_csv_path = f"{folder_name}/{step_csv_name}"
         summary_csv_path = f"{folder_name}/{summary_csv_name}"
 
         write_step_csv(detailed,
                        simulation_index=simulation_number,
                        filename=step_csv_path)
-        
+
         write_summary_csv(summaries,
                           simulation_index=simulation_number,
                           filename=summary_csv_path)
