@@ -420,12 +420,11 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
 
 if __name__ == '__main__':
         # Create output directories if they don't exist
-    os.makedirs("results", exist_ok=True)
+    os.makedirs("results_maz2d", exist_ok=True)
     os.makedirs("visualizations", exist_ok=True)
     
     for simulation_number in range(SIMULATION_NUMBER):
         print(f"Starting simulation {simulation_number + 1}/{SIMULATION_NUMBER}")
-        random.seed(simulation_number + 1)
         np.random.seed(simulation_number + 1)
 
         # Run simulation
