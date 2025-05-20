@@ -363,7 +363,7 @@ class SocialRewardCalculator:
         # 3) empathic reward
         empathic_reward = []
         for idx, emo in enumerate(emotions):
-            # moyenne des émotions des autres agents
+            # Average emotion
             others_emo = np.mean([e for j, e in enumerate(emotions) if j != idx])
             # formation of the list of empathic reward
             empathic_reward.append(others_emo)

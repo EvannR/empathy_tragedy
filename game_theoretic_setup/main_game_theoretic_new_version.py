@@ -20,8 +20,8 @@ ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 # Agent & emotion settings
 AGENT_TO_TEST = "DQN"      # 'DQN' or 'QLearning'
 EMOTION_TYPE = "average"   # 'average' or 'vector'
-SEE_EMOTIONS = True        # whether agents observe others' emotions
-ALPHA = 0.5                # empathy degree (0.0 - 1.0)
+SEE_EMOTIONS = True        # whether agents observe others' emotions : True or False
+ALPHA = 0.5                  # empathy degree (0.0 - 1.0)
 BETA = 0.5                 # valuation of last meal
 SMOOTHING = 'linear'       # function transforming the meal history into an emotion : "sigmoid" OR "linear"
 SIGMOID_GAIN = 5.0
@@ -212,7 +212,7 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         filename = filename_definer(simulation_index, suffix="step_data")
 
     header = (
-        ["simulation_number","seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
+        ["simulation_number", "seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
         [f"observation_{i}" for i in range(NB_AGENTS)] +
         [f"action_{i}" for i in range(NB_AGENTS)] +
         [f"personal_reward_{i}" for i in range(NB_AGENTS)] + 
@@ -226,6 +226,7 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         for episode_steps in detailed_data:
             for record in episode_steps:
                 row = [
+                    simulation_index,
                     record['seed'], record['episode'],
                     record['step'], record['resource'], INITIAL_RESOURCES, MAX_STEPS
                 ] + sum([
@@ -245,7 +246,7 @@ def write_summary_csv(summaries, simulation_index, filename=None):
         filename = filename_definer(simulation_index, suffix="episode_summary")
 
     header = (
-        ['seed', 'episode', 'total_steps', 'resource_remaining', 'initial_resources', 'max_steps'] +
+        ['simulation_index', 'seed', 'episode', 'total_steps', 'resource_remaining', 'initial_resources', 'max_steps'] +
         [f"total_personal_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_empathic_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_combined_reward_{i}" for i in range(NB_AGENTS)]
@@ -256,8 +257,9 @@ def write_summary_csv(summaries, simulation_index, filename=None):
         writer.writerow(header)
         for rec in summaries:
             row = [
+                simulation_index,
                 rec['seed'], rec['episode'],
-                rec['total_steps'], rec['resource_remaining'], 
+                rec['total_steps'], rec['resource_remaining'],
                 INITIAL_RESOURCES, MAX_STEPS
             ] + sum([
                 [rec['personal_totals'][i], rec['empathic_totals'][i], rec['combined_totals'][i]]
