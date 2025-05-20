@@ -100,8 +100,8 @@ class Maze2DEnv:
             # Randomly distribute resources
             num_resource_cells = int(self.maze_size[0] * self.maze_size[1] * self.resource_density)
             flat_indices = np.random.choice(
-                self.maze_size[0] * self.maze_size[1], 
-                size=num_resource_cells, 
+                self.maze_size[0] * self.maze_size[1],
+                size=num_resource_cells,
                 replace=False
             )
             

@@ -18,7 +18,6 @@ First experiment : 2 conditions
     NB_AGENTS = 6
     STEP = 1000
     INITIAL_RESOURCES = 500
-
 '''
 
 '''

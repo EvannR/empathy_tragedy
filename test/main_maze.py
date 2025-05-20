@@ -15,6 +15,23 @@ from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.patches as patches
 import ffmpeg
 
+
+"""
+Simulation parameter
+
+First experiment : 2 conditions
+    empathic : SEE_EMOTIONS = TRUE AND ALPHA = 0.5
+    standard : SEE_EMOTIONS = FALSE AND ALPHA = 0
+
+    Episodes = 5000
+    NB_AGENTS = 6
+    STEP = 1000
+
+    MAZE_SIZE = (5, 5) # has to be sufficiently big for the amount of agents
+    RESOURCE_DENSITY = 0.3 # to reduce ?
+
+"""
+
 # ----------------------------------------
 # Constants for the simulation
 # ----------------------------------------
