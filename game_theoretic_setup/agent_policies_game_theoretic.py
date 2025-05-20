@@ -370,5 +370,5 @@ class SocialRewardCalculator:
 
         # 4) total reward: on garde la satisfaction perso + empathic reward
         total = [(1 - self.alpha) * pers + self.alpha * emp for pers, emp in zip(personal, empathic_reward)]
-
+        
         return emotions, personal, empathic_reward, total

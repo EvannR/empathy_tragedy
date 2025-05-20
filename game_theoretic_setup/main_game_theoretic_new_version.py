@@ -10,9 +10,9 @@ import os
 # ----------------------------------------
 
 
-SIMULATION_NUMBER = 3      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 15         # number of episodes per simulation
-NB_AGENTS = 2
+SIMULATION_NUMBER = 1      # number of simulation runs (also used as seed per run)
+EPISODE_NUMBER = 2         # number of episodes per simulation
+NB_AGENTS = 3
 MAX_STEPS = 500            # number of steps per episode
 INITIAL_RESOURCES = 100    # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
