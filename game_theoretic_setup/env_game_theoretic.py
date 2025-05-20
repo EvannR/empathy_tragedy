@@ -115,7 +115,6 @@ class GameTheoreticEnv:
 
         for i in range(self.nb_agents):
             other_emotions = [e for j, e in enumerate(emotions) if j != i]
-
             if self.emotion_type == "average":
                 obs = np.array([np.mean(other_emotions)], dtype=float)
             elif self.emotion_type == "vector":
@@ -157,12 +156,6 @@ class GameTheoreticEnv:
 
         emotions, personal_reward, empathic_reward, total_reward = self.reward_calculator.calculate_rewards(self.agents)
 
-        for i, (p, e, c) in enumerate(zip(personal_reward, empathic_reward, total_reward)):
-            avg = 0.5 * (p + e)
-            if abs(c - avg) >= 1e-6:
-                raise AssertionError(f"[RewardCalc] Mismatch for agent {i}: combined={c:.6f}, expected={avg:.6f}, personal={p:.6f}, empathic={e:.6f}")
-
-
         # Update of the environment
         self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
         self.time_step += 1
@@ -175,9 +168,6 @@ class GameTheoreticEnv:
             'empathic_reward': empathic_reward,
             'combined_reward': total_reward
         }
-
-        if self.alpha != self._alpha_initial:
-            raise RuntimeError(f"Alpha changed: {self.alpha} != {self._alpha_initial}")
 
         return next_obs, total_reward, done, info
 

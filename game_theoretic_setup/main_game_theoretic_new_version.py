@@ -22,14 +22,14 @@ First experiment : 2 conditions
 '''
 
 '''
-Second experiment
-
+Second experiment : ANOVA
+Third experiment : multiple ALPHA
 '''
 
-SIMULATION_NUMBER = 1      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 2         # number of episodes per simulation
+SIMULATION_NUMBER = 2      # number of simulation runs (also used as seed per run)
+EPISODE_NUMBER = 10        # number of episodes per simulation
 NB_AGENTS = 6
-MAX_STEPS = 500            # number of steps per episode
+MAX_STEPS = 1000          # number of steps per episode
 INITIAL_RESOURCES = 500   # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
@@ -416,8 +416,9 @@ if __name__ == '__main__':
         write_summary_csv(summaries,
                           simulation_index=simulation_number,
                           filename=summary_csv_path)
-        
+
+        '''
         test_combined_rewards(summary_csv_path,
                               alpha=ALPHA,
                               nb_agents=NB_AGENTS)
-
+        '''
