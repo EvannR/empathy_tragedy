@@ -4,15 +4,16 @@ import numpy as np
 import random
 import csv
 import os
+import pandas as pd
 
 # ----------------------------------------
 # Constants for the simulation
 # ----------------------------------------
 
 
-SIMULATION_NUMBER = 3      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 15         # number of episodes per simulation
-NB_AGENTS = 2
+SIMULATION_NUMBER = 1      # number of simulation runs (also used as seed per run)
+EPISODE_NUMBER = 2         # number of episodes per simulation
+NB_AGENTS = 3
 MAX_STEPS = 500            # number of steps per episode
 INITIAL_RESOURCES = 100    # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
@@ -20,7 +21,7 @@ ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 # Agent & emotion settings
 AGENT_TO_TEST = "DQN"      # 'DQN' or 'QLearning'
 EMOTION_TYPE = "average"   # 'average' or 'vector'
-SEE_EMOTIONS = True        # whether agents observe others' emotions
+SEE_EMOTIONS = True        # whether agents observe others' emotions : True or False
 ALPHA = 0.5                # empathy degree (0.0 - 1.0)
 BETA = 0.5                 # valuation of last meal
 SMOOTHING = 'linear'       # function transforming the meal history into an emotion : "sigmoid" OR "linear"
@@ -160,15 +161,21 @@ def run_simulation(episode_count, simulation_index):
             actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
             next_obs, rewards, done, info = env.make_step(actions)
 
-            prs = np.array(info['personal_satisfaction'])
+            prs = np.array(info['exploitation_reward'])
             ers = np.array(info['empathic_reward'])
             crs = np.array(info['combined_reward'])
+
+            for i, (p, e, c) in enumerate(zip(prs, ers, crs)):
+                avg = 0.5 * (p + e)
+                if abs(c - avg) >= 1e-6:
+                    raise AssertionError(f"[step_main] Mismatch for agent {i}: combined={c:.6f}, expected={avg:.6f}, personal={p:.6f}, empathic={e:.6f}")
 
             total_personal += prs
             total_empathic += ers
             total_combined += crs
 
             episode_steps.append({
+                'simulation_number': simulation_index,
                 'seed': simulation_index,
                 'episode': episode,
                 'step': step,
@@ -177,17 +184,12 @@ def run_simulation(episode_count, simulation_index):
                 'actions': actions,
                 'personal': prs.tolist(),
                 'empathic': ers.tolist(),
-                'combined': crs.tolist()
+                'combined_reward': crs.tolist()
             })
-
-            for i, agent in enumerate(agents):
-                agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
-            obs = next_obs
-            if done:
-                break
 
         detailed_data.append(episode_steps)
         summaries.append({
+            'simulation_number': simulation_index,
             'seed': simulation_index,
             'episode': episode,
             'total_steps': step + 1,
@@ -196,6 +198,12 @@ def run_simulation(episode_count, simulation_index):
             'empathic_totals': total_empathic.tolist(),
             'combined_totals': total_combined.tolist()
         })
+
+        for i, agent in enumerate(agents):
+            agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
+        obs = next_obs
+        if done:
+            break
 
     return detailed_data, summaries
 
@@ -206,17 +214,17 @@ def run_simulation(episode_count, simulation_index):
 
 def write_step_csv(detailed_data, simulation_index, filename=None):
     """
-    Write detailed per-step data to CSV, including seed and episode.
+    Write detailed per-step data to CSV, including simulation number and seed.
     """
     if filename is None:
         filename = filename_definer(simulation_index, suffix="step_data")
 
     header = (
-        ["simulation_number","seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
+        ["simulation_number", "seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
         [f"observation_{i}" for i in range(NB_AGENTS)] +
         [f"action_{i}" for i in range(NB_AGENTS)] +
-        [f"personal_reward_{i}" for i in range(NB_AGENTS)] + 
-        [f"empathic_reward_{i}" for i in range(NB_AGENTS)] + 
+        [f"personal_reward_{i}" for i in range(NB_AGENTS)] +
+        [f"empathic_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_reward_{i}" for i in range(NB_AGENTS)]
     )
 
@@ -226,26 +234,33 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         for episode_steps in detailed_data:
             for record in episode_steps:
                 row = [
-                    record['seed'], record['episode'],
-                    record['step'], record['resource'], INITIAL_RESOURCES, MAX_STEPS
+                    record['simulation_number'],
+                    record.get('seed', simulation_index),
+                    record['episode'],
+                    record['step'],
+                    record['resource'],
+                    INITIAL_RESOURCES,
+                    MAX_STEPS
                 ] + sum([
-                    [record['observations'][i], record['actions'][i],
-                     record['personal'][i], record['empathic'][i], record['combined'][i]]
+                    [record['observations'][i],
+                     record['actions'][i],
+                     record['personal'][i],
+                     record['empathic'][i],
+                     record['combined_reward'][i]]
                     for i in range(NB_AGENTS)
                 ], [])
                 writer.writerow(row)
 
 
-
 def write_summary_csv(summaries, simulation_index, filename=None):
     """
-    Write per-episode summary data to CSV, including seed and episode.
+    Write per-episode summary data to CSV, including simulation number and seed.
     """
     if filename is None:
         filename = filename_definer(simulation_index, suffix="episode_summary")
 
     header = (
-        ['seed', 'episode', 'total_steps', 'resource_remaining', 'initial_resources', 'max_steps'] +
+        ["simulation_number", "seed", "episode", "total_steps", "resource_remaining", "initial_resources", "max_steps"] +
         [f"total_personal_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_empathic_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_combined_reward_{i}" for i in range(NB_AGENTS)]
@@ -256,11 +271,17 @@ def write_summary_csv(summaries, simulation_index, filename=None):
         writer.writerow(header)
         for rec in summaries:
             row = [
-                rec['seed'], rec['episode'],
-                rec['total_steps'], rec['resource_remaining'], 
-                INITIAL_RESOURCES, MAX_STEPS
+                rec['simulation_number'],
+                rec.get('seed', simulation_index),
+                rec['episode'],
+                rec['total_steps'],
+                rec['resource_remaining'],
+                INITIAL_RESOURCES,
+                MAX_STEPS
             ] + sum([
-                [rec['personal_totals'][i], rec['empathic_totals'][i], rec['combined_totals'][i]]
+                [rec['personal_totals'][i],
+                 rec['empathic_totals'][i],
+                 rec['combined_totals'][i]]
                 for i in range(NB_AGENTS)
             ], [])
             writer.writerow(row)
@@ -317,14 +338,66 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
     return filename
 
 # ----------------------------------------
+# debug data
+# ----------------------------------------
+
+
+def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=NB_AGENTS):
+    df = pd.read_csv(csv_path)
+    
+    # Générer dynamiquement les noms des colonnes selon nb_agents
+    personal_cols = [f'total_personal_reward_{i}' for i in range(nb_agents)]
+    empathic_cols = [f'total_empathic_reward_{i}' for i in range(nb_agents)]
+    combined_cols = [f'total_combined_reward_{i}' for i in range(nb_agents)]
+    
+    for i in range(nb_agents):
+        personal = df[personal_cols[i]].values
+        empathic = df[empathic_cols[i]].values
+        combined = df[combined_cols[i]].values
+        
+        combined_expected = (1 - alpha) * personal + alpha * empathic
+        
+        mismatches = np.abs(combined - combined_expected) > tolerance
+        if mismatches.any():
+            indices = np.where(mismatches)[0]
+            for idx in indices:
+                print(f"Mismatch at row {idx} for agent {i}:")
+                print(f"  CSV combined = {combined[idx]}")
+                print(f"  Expected combined = {combined_expected[idx]}")
+            raise AssertionError(f"Found mismatches for agent {i}")
+    print("All combined rewards match the expected values within tolerance.")
+
+
+# ----------------------------------------
 # Main entry
 # ----------------------------------------
 
 
 if __name__ == '__main__':
+    folder_name = "results_GT"
+    os.makedirs(folder_name, exist_ok=True)
     for simulation_number in range(SIMULATION_NUMBER):
         np.random.seed(simulation_number + 1)
 
         detailed, summaries = run_simulation(EPISODE_NUMBER, simulation_number)
-        write_step_csv(detailed, simulation_number)
-        write_summary_csv(summaries, simulation_number)
+
+        step_csv_name = filename_definer(simulation_number,
+                                         suffix="step_data")
+        summary_csv_name = filename_definer(simulation_number,
+                                            suffix="episode_summary")
+
+        step_csv_path = f"{folder_name}/{step_csv_name}"
+        summary_csv_path = f"{folder_name}/{summary_csv_name}"
+
+        write_step_csv(detailed,
+                       simulation_index=simulation_number,
+                       filename=step_csv_path)
+
+        write_summary_csv(summaries,
+                          simulation_index=simulation_number,
+                          filename=summary_csv_path)
+        
+        test_combined_rewards(summary_csv_path,
+                              alpha=ALPHA,
+                              nb_agents=NB_AGENTS)
+

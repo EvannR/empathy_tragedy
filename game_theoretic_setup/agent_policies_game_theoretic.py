@@ -363,12 +363,17 @@ class SocialRewardCalculator:
         # 3) empathic reward
         empathic_reward = []
         for idx, emo in enumerate(emotions):
-            # moyenne des émotions des autres agents
+            # Average emotion
             others_emo = np.mean([e for j, e in enumerate(emotions) if j != idx])
             # formation of the list of empathic reward
             empathic_reward.append(others_emo)
 
         # 4) total reward: on garde la satisfaction perso + empathic reward
         total = [(1 - self.alpha) * pers + self.alpha * emp for pers, emp in zip(personal, empathic_reward)]
+
+        for i, (p, e, c) in enumerate(zip(personal, empathic_reward, total)):
+            expected = (1 - self.alpha) * p + self.alpha * e
+            if abs(c - expected) >= 1e-6:
+                raise RuntimeError(f"Wrong total reward value: expected {expected} != {c}")
 
         return emotions, personal, empathic_reward, total
