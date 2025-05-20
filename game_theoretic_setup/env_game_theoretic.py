@@ -29,7 +29,7 @@ class GameTheoreticEnv:
         self.env_type = env_type              # "deterministic" or "stochastic"
         self.emotion_type = emotion_type      # "average" or "vector" (ignored if see_emotions=False)
         self.see_emotions = see_emotions      # If False, agents receive zero observations
-        self.alpha = alpha                    # empathic weight on others
+        self._alpha = alpha                    # empathic weight on others
         self.beta = beta                      # weight of last vs history
         self.number_actions = 2               # 0: Not Exploit, 1: Exploit
         self.actions = np.arange(self.number_actions)
@@ -41,7 +41,7 @@ class GameTheoreticEnv:
 
         # Social reward calculator
         self.reward_calculator = SocialRewardCalculator(nb_agents,
-                                                        alpha=alpha,
+                                                        alpha=self._alpha,
                                                         beta=beta,
                                                         threshold=threshold,
                                                         smoothing=smoothing,
@@ -51,6 +51,12 @@ class GameTheoreticEnv:
         # Initialize agents and reset environment state
         self._init_agents()
         self.reset()
+
+        self._alpha_initial = alpha
+
+    @property
+    def alpha(self):
+        return self._alpha
 
     def _init_agents(self):
         # Determine input dimension for agents
@@ -151,6 +157,12 @@ class GameTheoreticEnv:
 
         emotions, personal_reward, empathic_reward, total_reward = self.reward_calculator.calculate_rewards(self.agents)
 
+        for i, (p, e, c) in enumerate(zip(personal_reward, empathic_reward, total_reward)):
+            avg = 0.5 * (p + e)
+            if abs(c - avg) >= 1e-6:
+                raise AssertionError(f"[RewardCalc] Mismatch for agent {i}: combined={c:.6f}, expected={avg:.6f}, personal={p:.6f}, empathic={e:.6f}")
+
+
         # Update of the environment
         self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
         self.time_step += 1
@@ -159,11 +171,13 @@ class GameTheoreticEnv:
 
         info = {
             'emotions': emotions,
-            'personal_satisfaction': personal_reward,
+            'exploitation_reward': personal_reward,
             'empathic_reward': empathic_reward,
-            'exploitation_reward': immediate_rewards,
             'combined_reward': total_reward
         }
+
+        if self.alpha != self._alpha_initial:
+            raise RuntimeError(f"Alpha changed: {self.alpha} != {self._alpha_initial}")
 
         return next_obs, total_reward, done, info
 

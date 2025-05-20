@@ -4,6 +4,7 @@ import numpy as np
 import random
 import csv
 import os
+import pandas as pd
 
 # ----------------------------------------
 # Constants for the simulation
@@ -21,7 +22,7 @@ ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 AGENT_TO_TEST = "DQN"      # 'DQN' or 'QLearning'
 EMOTION_TYPE = "average"   # 'average' or 'vector'
 SEE_EMOTIONS = True        # whether agents observe others' emotions : True or False
-ALPHA = 0.5                  # empathy degree (0.0 - 1.0)
+ALPHA = 0.5                # empathy degree (0.0 - 1.0)
 BETA = 0.5                 # valuation of last meal
 SMOOTHING = 'linear'       # function transforming the meal history into an emotion : "sigmoid" OR "linear"
 SIGMOID_GAIN = 5.0
@@ -160,9 +161,14 @@ def run_simulation(episode_count, simulation_index):
             actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
             next_obs, rewards, done, info = env.make_step(actions)
 
-            prs = np.array(info['personal_satisfaction'])
+            prs = np.array(info['exploitation_reward'])
             ers = np.array(info['empathic_reward'])
             crs = np.array(info['combined_reward'])
+
+            for i, (p, e, c) in enumerate(zip(prs, ers, crs)):
+                avg = 0.5 * (p + e)
+                if abs(c - avg) >= 1e-6:
+                    raise AssertionError(f"[step_main] Mismatch for agent {i}: combined={c:.6f}, expected={avg:.6f}, personal={p:.6f}, empathic={e:.6f}")
 
             total_personal += prs
             total_empathic += ers
@@ -181,12 +187,6 @@ def run_simulation(episode_count, simulation_index):
                 'combined_reward': crs.tolist()
             })
 
-            for i, agent in enumerate(agents):
-                agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
-            obs = next_obs
-            if done:
-                break
-
         detailed_data.append(episode_steps)
         summaries.append({
             'simulation_number': simulation_index,
@@ -198,6 +198,12 @@ def run_simulation(episode_count, simulation_index):
             'empathic_totals': total_empathic.tolist(),
             'combined_totals': total_combined.tolist()
         })
+
+        for i, agent in enumerate(agents):
+            agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
+        obs = next_obs
+        if done:
+            break
 
     return detailed_data, summaries
 
@@ -332,6 +338,37 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
     return filename
 
 # ----------------------------------------
+# debug data
+# ----------------------------------------
+
+
+def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=NB_AGENTS):
+    df = pd.read_csv(csv_path)
+    
+    # Générer dynamiquement les noms des colonnes selon nb_agents
+    personal_cols = [f'total_personal_reward_{i}' for i in range(nb_agents)]
+    empathic_cols = [f'total_empathic_reward_{i}' for i in range(nb_agents)]
+    combined_cols = [f'total_combined_reward_{i}' for i in range(nb_agents)]
+    
+    for i in range(nb_agents):
+        personal = df[personal_cols[i]].values
+        empathic = df[empathic_cols[i]].values
+        combined = df[combined_cols[i]].values
+        
+        combined_expected = (1 - alpha) * personal + alpha * empathic
+        
+        mismatches = np.abs(combined - combined_expected) > tolerance
+        if mismatches.any():
+            indices = np.where(mismatches)[0]
+            for idx in indices:
+                print(f"Mismatch at row {idx} for agent {i}:")
+                print(f"  CSV combined = {combined[idx]}")
+                print(f"  Expected combined = {combined_expected[idx]}")
+            raise AssertionError(f"Found mismatches for agent {i}")
+    print("All combined rewards match the expected values within tolerance.")
+
+
+# ----------------------------------------
 # Main entry
 # ----------------------------------------
 
@@ -359,3 +396,8 @@ if __name__ == '__main__':
         write_summary_csv(summaries,
                           simulation_index=simulation_number,
                           filename=summary_csv_path)
+        
+        test_combined_rewards(summary_csv_path,
+                              alpha=ALPHA,
+                              nb_agents=NB_AGENTS)
+

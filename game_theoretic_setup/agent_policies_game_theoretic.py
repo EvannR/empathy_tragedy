@@ -370,5 +370,10 @@ class SocialRewardCalculator:
 
         # 4) total reward: on garde la satisfaction perso + empathic reward
         total = [(1 - self.alpha) * pers + self.alpha * emp for pers, emp in zip(personal, empathic_reward)]
-        
+
+        for i, (p, e, c) in enumerate(zip(personal, empathic_reward, total)):
+            expected = (1 - self.alpha) * p + self.alpha * e
+            if abs(c - expected) >= 1e-6:
+                raise RuntimeError(f"Wrong total reward value: expected {expected} != {c}")
+
         return emotions, personal, empathic_reward, total
