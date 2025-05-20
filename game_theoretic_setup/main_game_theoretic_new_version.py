@@ -169,6 +169,7 @@ def run_simulation(episode_count, simulation_index):
             total_combined += crs
 
             episode_steps.append({
+                'simulation_number': simulation_index,
                 'seed': simulation_index,
                 'episode': episode,
                 'step': step,
@@ -177,7 +178,7 @@ def run_simulation(episode_count, simulation_index):
                 'actions': actions,
                 'personal': prs.tolist(),
                 'empathic': ers.tolist(),
-                'combined': crs.tolist()
+                'combined_reward': crs.tolist()
             })
 
             for i, agent in enumerate(agents):
@@ -188,6 +189,7 @@ def run_simulation(episode_count, simulation_index):
 
         detailed_data.append(episode_steps)
         summaries.append({
+            'simulation_number': simulation_index,
             'seed': simulation_index,
             'episode': episode,
             'total_steps': step + 1,
@@ -206,7 +208,7 @@ def run_simulation(episode_count, simulation_index):
 
 def write_step_csv(detailed_data, simulation_index, filename=None):
     """
-    Write detailed per-step data to CSV, including seed and episode.
+    Write detailed per-step data to CSV, including simulation number and seed.
     """
     if filename is None:
         filename = filename_definer(simulation_index, suffix="step_data")
@@ -215,8 +217,8 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         ["simulation_number", "seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
         [f"observation_{i}" for i in range(NB_AGENTS)] +
         [f"action_{i}" for i in range(NB_AGENTS)] +
-        [f"personal_reward_{i}" for i in range(NB_AGENTS)] + 
-        [f"empathic_reward_{i}" for i in range(NB_AGENTS)] + 
+        [f"personal_reward_{i}" for i in range(NB_AGENTS)] +
+        [f"empathic_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_reward_{i}" for i in range(NB_AGENTS)]
     )
 
@@ -226,27 +228,33 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         for episode_steps in detailed_data:
             for record in episode_steps:
                 row = [
-                    simulation_index,
-                    record['seed'], record['episode'],
-                    record['step'], record['resource'], INITIAL_RESOURCES, MAX_STEPS
+                    record['simulation_number'],
+                    record.get('seed', simulation_index),
+                    record['episode'],
+                    record['step'],
+                    record['resource'],
+                    INITIAL_RESOURCES,
+                    MAX_STEPS
                 ] + sum([
-                    [record['observations'][i], record['actions'][i],
-                     record['personal'][i], record['empathic'][i], record['combined'][i]]
+                    [record['observations'][i],
+                     record['actions'][i],
+                     record['personal'][i],
+                     record['empathic'][i],
+                     record['combined_reward'][i]]
                     for i in range(NB_AGENTS)
                 ], [])
                 writer.writerow(row)
 
 
-
 def write_summary_csv(summaries, simulation_index, filename=None):
     """
-    Write per-episode summary data to CSV, including seed and episode.
+    Write per-episode summary data to CSV, including simulation number and seed.
     """
     if filename is None:
         filename = filename_definer(simulation_index, suffix="episode_summary")
 
     header = (
-        ['simulation_index', 'seed', 'episode', 'total_steps', 'resource_remaining', 'initial_resources', 'max_steps'] +
+        ["simulation_number", "seed", "episode", "total_steps", "resource_remaining", "initial_resources", "max_steps"] +
         [f"total_personal_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_empathic_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_combined_reward_{i}" for i in range(NB_AGENTS)]
@@ -257,12 +265,17 @@ def write_summary_csv(summaries, simulation_index, filename=None):
         writer.writerow(header)
         for rec in summaries:
             row = [
-                simulation_index,
-                rec['seed'], rec['episode'],
-                rec['total_steps'], rec['resource_remaining'],
-                INITIAL_RESOURCES, MAX_STEPS
+                rec['simulation_number'],
+                rec.get('seed', simulation_index),
+                rec['episode'],
+                rec['total_steps'],
+                rec['resource_remaining'],
+                INITIAL_RESOURCES,
+                MAX_STEPS
             ] + sum([
-                [rec['personal_totals'][i], rec['empathic_totals'][i], rec['combined_totals'][i]]
+                [rec['personal_totals'][i],
+                 rec['empathic_totals'][i],
+                 rec['combined_totals'][i]]
                 for i in range(NB_AGENTS)
             ], [])
             writer.writerow(row)
