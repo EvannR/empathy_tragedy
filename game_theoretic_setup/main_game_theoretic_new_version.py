@@ -25,10 +25,10 @@ Second experiment : ANOVA
 Third experiment : multiple ALPHA
 '''
 
-SIMULATION_NUMBER = 2      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 10        # number of episodes per simulation
+SIMULATION_NUMBER = 3      # number of simulation runs (also used as seed per run)
+EPISODE_NUMBER = 1000        # number of episodes per simulation
 NB_AGENTS = 6
-MAX_STEPS = 1000          # number of steps per episode
+MAX_STEPS = 10          # number of steps per episode
 INITIAL_RESOURCES = 500   # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
@@ -398,21 +398,22 @@ if __name__ == '__main__':
     for simulation_number in range(SIMULATION_NUMBER):
         np.random.seed(simulation_number + 1)
 
-        detailed, summaries = run_simulation(EPISODE_NUMBER, simulation_number)
+        detailed, summaries = run_simulation(simulation_index=simulation_number,
+                                             episode_count=EPISODE_NUMBER)
 
-        step_csv_name = filename_definer(simulation_number,
+        step_csv_name = filename_definer(simulation_index=simulation_number,
                                          suffix="step_data")
-        summary_csv_name = filename_definer(simulation_number,
+        summary_csv_name = filename_definer(simulation_index=simulation_number,
                                             suffix="episode_summary")
 
         step_csv_path = f"{folder_name}/{step_csv_name}"
         summary_csv_path = f"{folder_name}/{summary_csv_name}"
 
-        write_step_csv(detailed,
+        write_step_csv(detailed_data=detailed,
                        simulation_index=simulation_number,
                        filename=step_csv_path)
 
-        write_summary_csv(summaries,
+        write_summary_csv(summaries=summaries,
                           simulation_index=simulation_number,
                           filename=summary_csv_path)
 
