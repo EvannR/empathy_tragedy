@@ -25,11 +25,11 @@ Second experiment : ANOVA
 Third experiment : multiple ALPHA
 '''
 
-SIMULATION_NUMBER = 3      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 1000        # number of episodes per simulation
+SIMULATION_NUMBER = 20      # number of simulation runs (also used as seed per run)
+EPISODE_NUMBER = 10        # number of episodes per simulation
 NB_AGENTS = 6
-MAX_STEPS = 10          # number of steps per episode
-INITIAL_RESOURCES = 500   # number of ressource at the beginning of each episode
+MAX_STEPS = 100         # number of steps per episode
+INITIAL_RESOURCES = 50   # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
@@ -120,18 +120,17 @@ def run_step(env, agents, seed, episode, step, obs):
         rewards arrays,
         next observation
     """
-    # Select actions
+    
     actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
 
-    # Environment transition
     next_obs, rewards, done, info = env.make_step(actions)
 
     # Extract reward components
-    personal_arr = np.array(info['personal_satisfaction'])
+    personal_arr = np.array(info['exploitation_reward'])
     empathic_arr = np.array(info['empathic_reward'])
     combined_arr = np.array(info['combined_reward'])
 
-    # Build record
+
     record = {
         'seed': seed,
         'episode': episode,
@@ -141,7 +140,7 @@ def run_step(env, agents, seed, episode, step, obs):
         'actions': actions,
         'personal': personal_arr.tolist(),
         'empathic': empathic_arr.tolist(),
-        'combined': combined_arr.tolist()
+        'combined_reward': combined_arr.tolist()
     }
 
     # Learning updates
@@ -156,10 +155,6 @@ def run_step(env, agents, seed, episode, step, obs):
 
 
 def run_simulation(episode_count, simulation_index):
-    """
-    Runs `episode_count` episodes in one simulation,
-    returns detailed per-step data and per-episode summaries.
-    """
     env, agents = initialize_agents_and_env()
     detailed_data = []
     summaries = []
@@ -172,34 +167,28 @@ def run_simulation(episode_count, simulation_index):
         total_combined = np.zeros(NB_AGENTS)
 
         for step in range(MAX_STEPS):
-            actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
-            next_obs, rewards, done, info = env.make_step(actions)
-
-            prs = np.array(info['exploitation_reward'])
-            ers = np.array(info['empathic_reward'])
-            crs = np.array(info['combined_reward'])
-
-            for i, (p, e, c) in enumerate(zip(prs, ers, crs)):
-                avg = 0.5 * (p + e)
-                if abs(c - avg) >= 1e-6:
-                    raise AssertionError(f"[step_main] Mismatch for agent {i}: combined={c:.6f}, expected={avg:.6f}, personal={p:.6f}, empathic={e:.6f}")
+            record, prs, ers, crs, obs, done = run_step(env, agents, simulation_index, episode, step, obs)
+            
+            expected_keys = {
+                'seed',
+                'episode',
+                'step',
+                'resource',
+                'observations',
+                'actions',
+                'personal',
+                'empathic',
+                'combined_reward'
+                }
+            assert set(record.keys()) == expected_keys, f"Record keys mismatch: {set(record.keys()) ^ expected_keys}"
 
             total_personal += prs
             total_empathic += ers
             total_combined += crs
+            episode_steps.append(record)
 
-            episode_steps.append({
-                'simulation_number': simulation_index,
-                'seed': simulation_index,
-                'episode': episode,
-                'step': step,
-                'resource': env.resource,
-                'observations': obs.copy(),
-                'actions': actions,
-                'personal': prs.tolist(),
-                'empathic': ers.tolist(),
-                'combined_reward': crs.tolist()
-            })
+            if done:
+                break
 
         detailed_data.append(episode_steps)
         summaries.append({
@@ -213,13 +202,8 @@ def run_simulation(episode_count, simulation_index):
             'combined_totals': total_combined.tolist()
         })
 
-        for i, agent in enumerate(agents):
-            agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
-        obs = next_obs
-        if done:
-            break
-
     return detailed_data, summaries
+
 
 # ----------------------------------------
 # Functions used to write CSV
@@ -248,7 +232,7 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         for episode_steps in detailed_data:
             for record in episode_steps:
                 row = ([
-                    record['simulation_number'],
+                    simulation_index,
                     record.get('seed', simulation_index),
                     record['episode'],
                     record['step'],
@@ -393,7 +377,7 @@ def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
 
 
 if __name__ == '__main__':
-    folder_name = "results_GT"
+    folder_name = "results_GT_simulation1_jerome"
     os.makedirs(folder_name, exist_ok=True)
     for simulation_number in range(SIMULATION_NUMBER):
         np.random.seed(simulation_number + 1)
