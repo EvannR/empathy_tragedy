@@ -5,6 +5,8 @@ import random
 import csv
 import os
 import pandas as pd
+from tqdm import tqdm
+
 
 # ----------------------------------------
 # Constants for the simulation
@@ -25,11 +27,11 @@ Second experiment : ANOVA
 Third experiment : multiple ALPHA
 '''
 
-SIMULATION_NUMBER = 20      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 10        # number of episodes per simulation
+SIMULATION_NUMBER = 30      # number of simulation runs (also used as seed per run)
+EPISODE_NUMBER = 5000        # number of episodes per simulation
 NB_AGENTS = 6
-MAX_STEPS = 100         # number of steps per episode
-INITIAL_RESOURCES = 50   # number of ressource at the beginning of each episode
+MAX_STEPS = 1000         # number of steps per episode
+INITIAL_RESOURCES = 500   # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
@@ -108,7 +110,7 @@ def initialize_agents_and_env():
 # ----------------------------------------
 
 
-def run_step(env, agents, seed, episode, step, obs):
+def run_step(env, agents, simulation_index, episode, step, obs):
     """
     Execute one step:
         select actions,
@@ -120,7 +122,7 @@ def run_step(env, agents, seed, episode, step, obs):
         rewards arrays,
         next observation
     """
-    
+
     actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
 
     next_obs, rewards, done, info = env.make_step(actions)
@@ -130,9 +132,9 @@ def run_step(env, agents, seed, episode, step, obs):
     empathic_arr = np.array(info['empathic_reward'])
     combined_arr = np.array(info['combined_reward'])
 
-
     record = {
-        'seed': seed,
+        'simulation_number': simulation_index,
+        'seed': simulation_index,
         'episode': episode,
         'step': step,
         'resource': env.resource,
@@ -142,7 +144,6 @@ def run_step(env, agents, seed, episode, step, obs):
         'empathic': empathic_arr.tolist(),
         'combined_reward': combined_arr.tolist()
     }
-
     # Learning updates
     for i, agent in enumerate(agents):
         agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
@@ -154,55 +155,49 @@ def run_step(env, agents, seed, episode, step, obs):
 # ----------------------------------------
 
 
-def run_simulation(episode_count, simulation_index):
+def run_simulation_with_progressive_saving(episode_count, simulation_index, step_file, summary_file, seed, verbose=True):
+    np.random.seed(seed)
     env, agents = initialize_agents_and_env()
-    detailed_data = []
     summaries = []
 
-    for episode in range(episode_count):
+    episode_iter = tqdm(range(episode_count), desc="Episodes", disable=not verbose)
+    for episode in episode_iter:
         obs = env.reset()
-        episode_steps = []
         total_personal = np.zeros(NB_AGENTS)
         total_empathic = np.zeros(NB_AGENTS)
         total_combined = np.zeros(NB_AGENTS)
 
-        for step in range(MAX_STEPS):
+        episode_step_records = []  # <-- store records here
+
+        step_iter = tqdm(range(MAX_STEPS), desc=f"Episode {episode}", leave=False, disable=not verbose)
+        for step in step_iter:
             record, prs, ers, crs, obs, done = run_step(env, agents, simulation_index, episode, step, obs)
-            
-            expected_keys = {
-                'seed',
-                'episode',
-                'step',
-                'resource',
-                'observations',
-                'actions',
-                'personal',
-                'empathic',
-                'combined_reward'
-                }
-            assert set(record.keys()) == expected_keys, f"Record keys mismatch: {set(record.keys()) ^ expected_keys}"
+
+            episode_step_records.append(record)  # <-- collect record in memory
 
             total_personal += prs
             total_empathic += ers
             total_combined += crs
-            episode_steps.append(record)
 
             if done:
                 break
 
-        detailed_data.append(episode_steps)
-        summaries.append({
+        # After episode ends, write all step records at once
+        write_step_csv(episode_step_records, simulation_index, seed=seed, filename=step_file)
+
+        summary = {
             'simulation_number': simulation_index,
-            'seed': simulation_index,
+            'seed': seed,
             'episode': episode,
             'total_steps': step + 1,
             'resource_remaining': env.resource,
             'personal_totals': total_personal.tolist(),
             'empathic_totals': total_empathic.tolist(),
             'combined_totals': total_combined.tolist()
-        })
+        }
+        summaries.append(summary)
 
-    return detailed_data, summaries
+        write_summary_csv([summary], simulation_index, filename=summary_file, seed=seed)
 
 
 # ----------------------------------------
@@ -210,12 +205,12 @@ def run_simulation(episode_count, simulation_index):
 # ----------------------------------------
 
 
-def write_step_csv(detailed_data, simulation_index, filename=None):
+def append_step_record(record, simulation_index, filename):
     """
-    Write detailed per-step data to CSV, including simulation number and seed.
+    Append a single step record to the simulation's step CSV file.
+    Writes header only once (if file doesn't exist).
     """
-    if filename is None:
-        filename = filename_definer(simulation_index, suffix="step_data")
+    file_exists = os.path.exists(filename)
 
     header = (
         ["simulation_number", "seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
@@ -226,35 +221,71 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         [f"total_reward_{i}" for i in range(NB_AGENTS)]
     )
 
-    with open(filename, 'w', newline='') as f:
+    row = (
+        [simulation_index,
+         record.get('seed', simulation_index),
+         record['episode'],
+         record['step'],
+         record['resource'],
+         INITIAL_RESOURCES,
+         MAX_STEPS]
+        + record['observations']
+        + record['actions']
+        + record['personal']
+        + record['empathic']
+        + record['combined_reward']
+    )
+
+    with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(header)
-        for episode_steps in detailed_data:
-            for record in episode_steps:
-                row = ([
-                    simulation_index,
-                    record.get('seed', simulation_index),
-                    record['episode'],
-                    record['step'],
-                    record['resource'],
-                    INITIAL_RESOURCES,
-                    MAX_STEPS,]
-                    + record['observations']
-                    + record['actions']
-                    + record['personal']
-                    + record['empathic']
-                    + record['combined_reward']
-                )
-                writer.writerow(row)
+        if not file_exists:
+            writer.writerow(header)
+        writer.writerow(row)
 
 
-def write_summary_csv(summaries, simulation_index, filename=None):
+def write_step_csv(step_records, simulation_index, seed, filename):
+    file_exists = os.path.exists(filename)
+    header = (
+        ["simulation_number", "seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
+        [f"observation_{i}" for i in range(NB_AGENTS)] +
+        [f"action_{i}" for i in range(NB_AGENTS)] +
+        [f"personal_reward_{i}" for i in range(NB_AGENTS)] +
+        [f"empathic_reward_{i}" for i in range(NB_AGENTS)] +
+        [f"total_reward_{i}" for i in range(NB_AGENTS)]
+    )
+
+    with open(filename, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(header)
+
+        for record in step_records:
+            row = (
+                [record['simulation_number'],
+                 record.get('seed', seed),
+                 record['episode'],
+                 record['step'],
+                 record['resource'],
+                 INITIAL_RESOURCES,
+                 MAX_STEPS]
+                + record['observations']
+                + record['actions']
+                + record['personal']
+                + record['empathic']
+                + record['combined_reward']
+            )
+            writer.writerow(row)
+
+
+
+def write_summary_csv(summaries, simulation_index, seed, filename=None):
     """
-    Write per-episode summary data to CSV, including simulation number and seed,
-    and flatten per-agent reward lists into separate columns.
+    Append per-episode summary data to CSV. Write header only if file does not exist.
     """
     if filename is None:
         filename = filename_definer(simulation_index, suffix="episode_summary")
+
+    file_exists = os.path.exists(filename)
 
     header = (
         ["simulation_number", "seed", "episode", "total_steps", "resource_remaining", "initial_resources", "max_steps"] +
@@ -263,14 +294,15 @@ def write_summary_csv(summaries, simulation_index, filename=None):
         [f"total_combined_reward_{i}" for i in range(NB_AGENTS)]
     )
 
-    with open(filename, 'w', newline='') as f:
+    with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(header)
+        if not file_exists:
+            writer.writerow(header)
         for rec in summaries:
             row = (
                 [
                     rec['simulation_number'],
-                    rec.get('seed', simulation_index),
+                    seed,
                     rec['episode'],
                     rec['total_steps'],
                     rec['resource_remaining'],
@@ -328,9 +360,10 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
     )
 
     # To ensure no file deletion
+    base_filename = filename.replace('.csv', '')
     version = 1
     while os.path.exists(filename):
-        filename = filename.replace('.csv', f'_{version}.csv')
+        filename = f"{base_filename}_{version}.csv"
         version += 1
 
     return filename
@@ -377,29 +410,29 @@ def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
 
 
 if __name__ == '__main__':
-    folder_name = "results_GT_simulation1_jerome"
+    folder_name = "Test_GT_newloop_jerome"
     os.makedirs(folder_name, exist_ok=True)
-    for simulation_number in range(SIMULATION_NUMBER):
-        np.random.seed(simulation_number + 1)
 
-        detailed, summaries = run_simulation(simulation_index=simulation_number,
-                                             episode_count=EPISODE_NUMBER)
+    for simulation_number in range(SIMULATION_NUMBER):
+        seed = simulation_number + 1
+        np.random.seed(seed)
 
         step_csv_name = filename_definer(simulation_index=simulation_number,
                                          suffix="step_data")
         summary_csv_name = filename_definer(simulation_index=simulation_number,
                                             suffix="episode_summary")
+        step_csv_path = os.path.join(folder_name, step_csv_name)
+        summary_csv_path = os.path.join(folder_name, summary_csv_name)
 
-        step_csv_path = f"{folder_name}/{step_csv_name}"
-        summary_csv_path = f"{folder_name}/{summary_csv_name}"
-
-        write_step_csv(detailed_data=detailed,
-                       simulation_index=simulation_number,
-                       filename=step_csv_path)
-
-        write_summary_csv(summaries=summaries,
-                          simulation_index=simulation_number,
-                          filename=summary_csv_path)
+        # Run simulation — records steps & summaries progressively
+        run_simulation_with_progressive_saving(
+            episode_count=EPISODE_NUMBER,
+            simulation_index=simulation_number,
+            step_file=step_csv_path,
+            summary_file=summary_csv_path,
+            seed=seed,
+            verbose=True
+        )
 
         '''
         test_combined_rewards(summary_csv_path,
