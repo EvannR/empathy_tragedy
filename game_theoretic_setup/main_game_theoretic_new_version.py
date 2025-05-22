@@ -266,7 +266,6 @@ def append_step_record(record, simulation_index, filename):
 
 
 def write_step_csv(step_records, simulation_index, seed, filename):
-    ):
     """
     Write a list of step-level records to a CSV file for a given simulation run.
 
@@ -477,7 +476,7 @@ def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
 
 
 if __name__ == '__main__':
-    folder_name = "Test_GT_newloop_jerome"
+    folder_name = "GT_simulation_jerome"
     os.makedirs(folder_name, exist_ok=True)
 
     for simulation_number in range(SIMULATION_NUMBER):
