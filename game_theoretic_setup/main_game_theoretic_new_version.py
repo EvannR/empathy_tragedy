@@ -155,51 +155,27 @@ def run_step(env, agents, simulation_index, episode, step, obs):
 # ----------------------------------------
 
 
-def run_simulation_with_progressive_saving(episode_count, simulation_index, step_file, summary_file, seed, verbose=True, step_csv_maker=True):
-    """
-    Run a full simulation consisting of multiple episodes and steps, progressively saving step-wise 
-    and episode summary data to CSV files.
-
-    Each simulation is initialized with a new environment and agents using the specified seed.
-    Agents interact with the environment by selecting actions, receiving rewards, and learning from feedback.
-    Step-level data (observations, actions, rewards) and episode-level summaries (cumulative rewards, resources) 
-    are written to separate CSV files to prevent memory overload and support analysis.
-
-    Parameters:
-        episode_count (int): Number of episodes to run in this simulation.
-        simulation_index (int): Index identifying this simulation run (also used in filenames and random seed).
-        step_file (str): Path to the CSV file where step-by-step records will be saved.
-        summary_file (str): Path to the CSV file where per-episode summaries will be saved.
-        seed (int): Random seed for reproducibility of the simulation.
-        verbose (bool): If True, displays progress bars using `tqdm`; otherwise runs silently.
-
-    Outputs:
-        Writes two CSV files:
-            - Step-level data including actions, rewards, and environment state at each step.
-            - Episode-level summary data aggregating total rewards and remaining resources per episode.
-    """
+def run_simulation_with_progressive_saving(simulation_index, step_file, summary_file, seed, episode_number=EPISODE_NUMBER, step_count=MAX_STEPS, verbose=True, step_csv_maker=True):
     np.random.seed(seed)
     env, agents = initialize_agents_and_env()
     summaries = []
 
-    if verbose:
-        episode_iter = tqdm(range(EPISODE_NUMBER), desc=f"Simulation {simulation_index + 1}/{SIMULATION_NUMBER}")
-    else:
-        episode_iter = range(EPISODE_NUMBER)
+    episode_iter = tqdm(range(episode_number), desc=f"Simulation {simulation_index + 1}/{SIMULATION_NUMBER}") if verbose else range(episode_number)
 
     for episode in episode_iter:
         obs = env.reset()
         total_personal = np.zeros(NB_AGENTS)
         total_empathic = np.zeros(NB_AGENTS)
         total_combined = np.zeros(NB_AGENTS)
+        episode_step_records = []
 
-        episode_step_records = []  # <-- store records here
-        if verbose == True:
-            step_iter = tqdm(range(MAX_STEPS), desc=f"Episode {episode}", leave=False, disable=not verbose)
+        step_iter = tqdm(range(step_count), desc=f"Episode {episode}", leave=False) if verbose else range(step_count)
+
         for step in step_iter:
             record, prs, ers, crs, obs, done = run_step(env, agents, simulation_index, episode, step, obs)
-            if step_csv_maker == True:
-                episode_step_records.append(record)  # <-- collect record in memory
+
+            if step_csv_maker:
+                episode_step_records.append(record)
 
             total_personal += prs
             total_empathic += ers
@@ -208,8 +184,7 @@ def run_simulation_with_progressive_saving(episode_count, simulation_index, step
             if done:
                 break
 
-        # After episode ends, write all step records at once
-        if step_csv_maker == True:
+        if step_csv_maker:
             write_step_csv(episode_step_records, simulation_index, seed=seed, filename=step_file)
 
         summary = {
@@ -223,8 +198,8 @@ def run_simulation_with_progressive_saving(episode_count, simulation_index, step
             'combined_totals': total_combined.tolist()
         }
         summaries.append(summary)
-
         write_summary_csv([summary], simulation_index, filename=summary_file, seed=seed)
+
 
 
 # ----------------------------------------
@@ -497,13 +472,14 @@ if __name__ == '__main__':
 
         # Run simulation — records steps & summaries progressively
         run_simulation_with_progressive_saving(
-            episode_count=EPISODE_NUMBER,
+            episode_number=EPISODE_NUMBER,
+            step_count=MAX_STEPS,
             simulation_index=simulation_number,
             step_file=step_csv_path,
             summary_file=summary_csv_path,
             seed=seed,
             verbose=False,
-            step_csv_maker=True
+            step_csv_maker=False
         )
 
         '''
