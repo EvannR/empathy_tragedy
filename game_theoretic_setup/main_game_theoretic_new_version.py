@@ -155,7 +155,7 @@ def run_step(env, agents, simulation_index, episode, step, obs):
 # ----------------------------------------
 
 
-def run_simulation_with_progressive_saving(episode_count, simulation_index, step_file, summary_file, seed, verbose=True):
+def run_simulation_with_progressive_saving(episode_count, simulation_index, step_file, summary_file, seed, verbose=True, step_csv_maker=True):
     """
     Run a full simulation consisting of multiple episodes and steps, progressively saving step-wise 
     and episode summary data to CSV files.
@@ -182,7 +182,11 @@ def run_simulation_with_progressive_saving(episode_count, simulation_index, step
     env, agents = initialize_agents_and_env()
     summaries = []
 
-    episode_iter = tqdm(range(episode_count), desc="Episodes", disable=not verbose)
+    if verbose:
+        episode_iter = tqdm(range(EPISODE_NUMBER), desc=f"Simulation {simulation_index + 1}/{SIMULATION_NUMBER}")
+    else:
+        episode_iter = range(EPISODE_NUMBER)
+
     for episode in episode_iter:
         obs = env.reset()
         total_personal = np.zeros(NB_AGENTS)
@@ -190,12 +194,12 @@ def run_simulation_with_progressive_saving(episode_count, simulation_index, step
         total_combined = np.zeros(NB_AGENTS)
 
         episode_step_records = []  # <-- store records here
-
-        step_iter = tqdm(range(MAX_STEPS), desc=f"Episode {episode}", leave=False, disable=not verbose)
+        if verbose == True:
+            step_iter = tqdm(range(MAX_STEPS), desc=f"Episode {episode}", leave=False, disable=not verbose)
         for step in step_iter:
             record, prs, ers, crs, obs, done = run_step(env, agents, simulation_index, episode, step, obs)
-
-            episode_step_records.append(record)  # <-- collect record in memory
+            if step_csv_maker == True:
+                episode_step_records.append(record)  # <-- collect record in memory
 
             total_personal += prs
             total_empathic += ers
@@ -205,7 +209,8 @@ def run_simulation_with_progressive_saving(episode_count, simulation_index, step
                 break
 
         # After episode ends, write all step records at once
-        write_step_csv(episode_step_records, simulation_index, seed=seed, filename=step_file)
+        if step_csv_maker == True:
+            write_step_csv(episode_step_records, simulation_index, seed=seed, filename=step_file)
 
         summary = {
             'simulation_number': simulation_index,
@@ -497,7 +502,8 @@ if __name__ == '__main__':
             step_file=step_csv_path,
             summary_file=summary_csv_path,
             seed=seed,
-            verbose=True
+            verbose=False,
+            step_csv_maker=True
         )
 
         '''
