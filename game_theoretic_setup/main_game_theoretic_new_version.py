@@ -28,7 +28,7 @@ Third experiment : multiple ALPHA
 '''
 
 SIMULATION_NUMBER = 30      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 5000        # number of episodes per simulation
+EPISODE_NUMBER = 500        # number of episodes per simulation
 NB_AGENTS = 6
 MAX_STEPS = 1000         # number of steps per episode
 INITIAL_RESOURCES = 500   # number of ressource at the beginning of each episode
@@ -456,10 +456,12 @@ def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
 
 
 if __name__ == '__main__':
-    folder_name = "GT_simulation_jerome"
+    folder_name = "GT_simulation_jerome_thesis_emp"
     os.makedirs(folder_name, exist_ok=True)
 
-    for simulation_number in range(SIMULATION_NUMBER):
+    SHOW_SIMULATION_PROGRESS = True
+    simulation_iter = tqdm(range(SIMULATION_NUMBER), desc="All simulations") if SHOW_SIMULATION_PROGRESS else range(SIMULATION_NUMBER)
+    for simulation_number in simulation_iter:
         seed = simulation_number + 1
         np.random.seed(seed)
 
@@ -478,7 +480,7 @@ if __name__ == '__main__':
             step_file=step_csv_path,
             summary_file=summary_csv_path,
             seed=seed,
-            verbose=False,
+            verbose=True,
             step_csv_maker=False
         )
 
