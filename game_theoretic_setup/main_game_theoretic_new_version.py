@@ -9,20 +9,35 @@ import pandas as pd
 # ----------------------------------------
 # Constants for the simulation
 # ----------------------------------------
+'''
+First experiment : 2 conditions
+    empathic : SEE_EMOTIONS = TRUE AND ALPHA = 0.5
+    standard : SEE_EMOTIONS = FALSE AND ALPHA = 0
 
+    Episodes = 5000
+    NB_AGENTS = 6
+    STEP = 1000
+    INITIAL_RESOURCES = 500
+
+'''
+
+'''
+Second experiment
+
+'''
 
 SIMULATION_NUMBER = 1      # number of simulation runs (also used as seed per run)
 EPISODE_NUMBER = 2         # number of episodes per simulation
-NB_AGENTS = 3
+NB_AGENTS = 6
 MAX_STEPS = 500            # number of steps per episode
-INITIAL_RESOURCES = 100    # number of ressource at the beginning of each episode
+INITIAL_RESOURCES = 500   # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
 AGENT_TO_TEST = "DQN"      # 'DQN' or 'QLearning'
 EMOTION_TYPE = "average"   # 'average' or 'vector'
-SEE_EMOTIONS = True        # whether agents observe others' emotions : True or False
-ALPHA = 0.5                # empathy degree (0.0 - 1.0)
+SEE_EMOTIONS = True        # whether agents observe others' emotions : First experiment - True or False
+ALPHA = 0.5                # empathy degree (0.0 - 1.0) First experiment - 0.5 or 0 (non empathic)
 BETA = 0.5                 # valuation of last meal
 SMOOTHING = 'linear'       # function transforming the meal history into an emotion : "sigmoid" OR "linear"
 SIGMOID_GAIN = 5.0
@@ -233,28 +248,27 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         writer.writerow(header)
         for episode_steps in detailed_data:
             for record in episode_steps:
-                row = [
+                row = ([
                     record['simulation_number'],
                     record.get('seed', simulation_index),
                     record['episode'],
                     record['step'],
                     record['resource'],
                     INITIAL_RESOURCES,
-                    MAX_STEPS
-                ] + sum([
-                    [record['observations'][i],
-                     record['actions'][i],
-                     record['personal'][i],
-                     record['empathic'][i],
-                     record['combined_reward'][i]]
-                    for i in range(NB_AGENTS)
-                ], [])
+                    MAX_STEPS,]
+                    + record['observations']
+                    + record['actions']
+                    + record['personal']
+                    + record['empathic']
+                    + record['combined_reward']
+                )
                 writer.writerow(row)
 
 
 def write_summary_csv(summaries, simulation_index, filename=None):
     """
-    Write per-episode summary data to CSV, including simulation number and seed.
+    Write per-episode summary data to CSV, including simulation number and seed,
+    and flatten per-agent reward lists into separate columns.
     """
     if filename is None:
         filename = filename_definer(simulation_index, suffix="episode_summary")
@@ -270,21 +284,22 @@ def write_summary_csv(summaries, simulation_index, filename=None):
         writer = csv.writer(f)
         writer.writerow(header)
         for rec in summaries:
-            row = [
-                rec['simulation_number'],
-                rec.get('seed', simulation_index),
-                rec['episode'],
-                rec['total_steps'],
-                rec['resource_remaining'],
-                INITIAL_RESOURCES,
-                MAX_STEPS
-            ] + sum([
-                [rec['personal_totals'][i],
-                 rec['empathic_totals'][i],
-                 rec['combined_totals'][i]]
-                for i in range(NB_AGENTS)
-            ], [])
+            row = (
+                [
+                    rec['simulation_number'],
+                    rec.get('seed', simulation_index),
+                    rec['episode'],
+                    rec['total_steps'],
+                    rec['resource_remaining'],
+                    INITIAL_RESOURCES,
+                    MAX_STEPS,
+                ]
+                + rec['personal_totals']
+                + rec['empathic_totals']
+                + rec['combined_totals']
+            )
             writer.writerow(row)
+
 
 # ----------------------------------------
 # Filename builder
@@ -342,30 +357,35 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
 # ----------------------------------------
 
 
-def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=NB_AGENTS):
+def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
     df = pd.read_csv(csv_path)
-    
-    # Générer dynamiquement les noms des colonnes selon nb_agents
+
+    if nb_agents is None:
+        nb_agents = sum(col.startswith('total_personal_reward_') for col in df.columns)
+
     personal_cols = [f'total_personal_reward_{i}' for i in range(nb_agents)]
     empathic_cols = [f'total_empathic_reward_{i}' for i in range(nb_agents)]
     combined_cols = [f'total_combined_reward_{i}' for i in range(nb_agents)]
-    
+
     for i in range(nb_agents):
-        personal = df[personal_cols[i]].values
-        empathic = df[empathic_cols[i]].values
-        combined = df[combined_cols[i]].values
-        
+        personal = np.array(df[personal_cols[i]].values, dtype=float)
+        empathic = np.array(df[empathic_cols[i]].values, dtype=float)
+        combined = np.array(df[combined_cols[i]].values, dtype=float)
+
         combined_expected = (1 - alpha) * personal + alpha * empathic
-        
+
         mismatches = np.abs(combined - combined_expected) > tolerance
         if mismatches.any():
             indices = np.where(mismatches)[0]
             for idx in indices:
                 print(f"Mismatch at row {idx} for agent {i}:")
-                print(f"  CSV combined = {combined[idx]}")
+                print(f"  CSV combined     = {combined[idx]}")
                 print(f"  Expected combined = {combined_expected[idx]}")
+                print(f"  Personal          = {personal[idx]}")
+                print(f"  Empathic          = {empathic[idx]}")
             raise AssertionError(f"Found mismatches for agent {i}")
-    print("All combined rewards match the expected values within tolerance.")
+
+    print("✅ All combined rewards match expected values within tolerance.")
 
 
 # ----------------------------------------

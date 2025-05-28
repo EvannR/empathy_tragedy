@@ -1,0 +1,1 @@
+simulation_number,seed,episode,step,resource_remaining,initial_resources,max_step,observation_0,observation_1,observation_2,action_0,action_1,action_2,personal_reward_0,personal_reward_1,personal_reward_2,empathic_reward_0,empathic_reward_1,empathic_reward_2,total_reward_0,total_reward_1,total_reward_2
