@@ -15,6 +15,23 @@ from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.patches as patches
 import ffmpeg
 
+
+"""
+Simulation parameter
+
+First experiment : 2 conditions
+    empathic : SEE_EMOTIONS = TRUE AND ALPHA = 0.5
+    standard : SEE_EMOTIONS = FALSE AND ALPHA = 0
+
+    Episodes = 5000
+    NB_AGENTS = 6
+    STEP = 1000
+
+    MAZE_SIZE = (5, 5) # has to be sufficiently big for the amount of agents
+    RESOURCE_DENSITY = 0.3 # to reduce ?
+
+"""
+
 # ----------------------------------------
 # Constants for the simulation
 # ----------------------------------------
@@ -428,7 +445,7 @@ if __name__ == '__main__':
         np.random.seed(simulation_number + 1)
 
         # Run simulation
-        detailed, summaries = run_simulation(EPISODE_NUMBER, simulation_number)
+        detailed, summaries = run_simulation(episode_count=EPISODE_NUMBER, simulation_index=simulation_number)
         
         # Write CSV data
         step_csv = filename_definer(simulation_number, suffix="step_data")
@@ -439,7 +456,8 @@ if __name__ == '__main__':
         
         write_step_csv(detailed, simulation_number, filename=step_csv_path)
         write_summary_csv(summaries, simulation_number, filename=summary_csv_path)
-        
+
+        '''
         # Generate visualizations for first simulation only
         if simulation_number == 0:
             print("Generating visualizations...")
@@ -495,7 +513,7 @@ if __name__ == '__main__':
                 final_viz_path = os.path.join(viz_dir, f"maze_episode_{episode_idx}_final.png")
                 visualize_maze(env, episode=episode_idx, step=final_step, save_path=final_viz_path)
         
-        print(f"Completed simulation {simulation_number + 1}/{SIMULATION_NUMBER}")
+        # print(f"Completed simulation {simulation_number + 1}/{SIMULATION_NUMBER}")
     
     # print("All simulations completed successfully!")
     # print("\nSuggested next steps:")
@@ -506,3 +524,5 @@ if __name__ == '__main__':
     # print("2. Compare Q-Learning vs DQN performance")
     # print("3. Analyze the effect of seeing emotions (SEE_EMOTIONS) on agent behavior")
     # print("4. Experiment with different resource distributions (RESOURCE_DISTRIBUTION)")
+
+    '''

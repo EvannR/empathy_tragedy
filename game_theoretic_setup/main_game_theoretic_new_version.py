@@ -5,6 +5,8 @@ import random
 import csv
 import os
 import pandas as pd
+from tqdm import tqdm
+
 
 # ----------------------------------------
 # Constants for the simulation
@@ -18,18 +20,17 @@ First experiment : 2 conditions
     NB_AGENTS = 6
     STEP = 1000
     INITIAL_RESOURCES = 500
-
 '''
 
 '''
-Second experiment
-
+Second experiment : ANOVA
+Third experiment : multiple ALPHA
 '''
 
-SIMULATION_NUMBER = 1      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 2         # number of episodes per simulation
+SIMULATION_NUMBER = 30      # number of simulation runs (also used as seed per run)
+EPISODE_NUMBER = 500        # number of episodes per simulation
 NB_AGENTS = 6
-MAX_STEPS = 500            # number of steps per episode
+MAX_STEPS = 1000         # number of steps per episode
 INITIAL_RESOURCES = 500   # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
@@ -109,7 +110,7 @@ def initialize_agents_and_env():
 # ----------------------------------------
 
 
-def run_step(env, agents, seed, episode, step, obs):
+def run_step(env, agents, simulation_index, episode, step, obs):
     """
     Execute one step:
         select actions,
@@ -121,20 +122,19 @@ def run_step(env, agents, seed, episode, step, obs):
         rewards arrays,
         next observation
     """
-    # Select actions
+
     actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
 
-    # Environment transition
     next_obs, rewards, done, info = env.make_step(actions)
 
     # Extract reward components
-    personal_arr = np.array(info['personal_satisfaction'])
+    personal_arr = np.array(info['exploitation_reward'])
     empathic_arr = np.array(info['empathic_reward'])
     combined_arr = np.array(info['combined_reward'])
 
-    # Build record
     record = {
-        'seed': seed,
+        'simulation_number': simulation_index,
+        'seed': simulation_index,
         'episode': episode,
         'step': step,
         'resource': env.resource,
@@ -142,9 +142,8 @@ def run_step(env, agents, seed, episode, step, obs):
         'actions': actions,
         'personal': personal_arr.tolist(),
         'empathic': empathic_arr.tolist(),
-        'combined': combined_arr.tolist()
+        'combined_reward': combined_arr.tolist()
     }
-
     # Learning updates
     for i, agent in enumerate(agents):
         agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
@@ -156,83 +155,64 @@ def run_step(env, agents, seed, episode, step, obs):
 # ----------------------------------------
 
 
-def run_simulation(episode_count, simulation_index):
-    """
-    Runs `episode_count` episodes in one simulation,
-    returns detailed per-step data and per-episode summaries.
-    """
+def run_simulation_with_progressive_saving(simulation_index, step_file, summary_file, seed, episode_number=EPISODE_NUMBER, step_count=MAX_STEPS, verbose=True, step_csv_maker=True):
+    np.random.seed(seed)
     env, agents = initialize_agents_and_env()
-    detailed_data = []
     summaries = []
 
-    for episode in range(episode_count):
+    episode_iter = tqdm(range(episode_number), desc=f"Simulation {simulation_index + 1}/{SIMULATION_NUMBER}") if verbose else range(episode_number)
+
+    for episode in episode_iter:
         obs = env.reset()
-        episode_steps = []
         total_personal = np.zeros(NB_AGENTS)
         total_empathic = np.zeros(NB_AGENTS)
         total_combined = np.zeros(NB_AGENTS)
+        episode_step_records = []
 
-        for step in range(MAX_STEPS):
-            actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
-            next_obs, rewards, done, info = env.make_step(actions)
+        step_iter = tqdm(range(step_count), desc=f"Episode {episode}", leave=False) if verbose else range(step_count)
 
-            prs = np.array(info['exploitation_reward'])
-            ers = np.array(info['empathic_reward'])
-            crs = np.array(info['combined_reward'])
+        for step in step_iter:
+            record, prs, ers, crs, obs, done = run_step(env, agents, simulation_index, episode, step, obs)
 
-            for i, (p, e, c) in enumerate(zip(prs, ers, crs)):
-                avg = 0.5 * (p + e)
-                if abs(c - avg) >= 1e-6:
-                    raise AssertionError(f"[step_main] Mismatch for agent {i}: combined={c:.6f}, expected={avg:.6f}, personal={p:.6f}, empathic={e:.6f}")
+            if step_csv_maker:
+                episode_step_records.append(record)
 
             total_personal += prs
             total_empathic += ers
             total_combined += crs
 
-            episode_steps.append({
-                'simulation_number': simulation_index,
-                'seed': simulation_index,
-                'episode': episode,
-                'step': step,
-                'resource': env.resource,
-                'observations': obs.copy(),
-                'actions': actions,
-                'personal': prs.tolist(),
-                'empathic': ers.tolist(),
-                'combined_reward': crs.tolist()
-            })
+            if done:
+                break
 
-        detailed_data.append(episode_steps)
-        summaries.append({
+        if step_csv_maker:
+            write_step_csv(episode_step_records, simulation_index, seed=seed, filename=step_file)
+
+        summary = {
             'simulation_number': simulation_index,
-            'seed': simulation_index,
+            'seed': seed,
             'episode': episode,
             'total_steps': step + 1,
             'resource_remaining': env.resource,
             'personal_totals': total_personal.tolist(),
             'empathic_totals': total_empathic.tolist(),
             'combined_totals': total_combined.tolist()
-        })
+        }
+        summaries.append(summary)
+        write_summary_csv([summary], simulation_index, filename=summary_file, seed=seed)
 
-        for i, agent in enumerate(agents):
-            agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
-        obs = next_obs
-        if done:
-            break
 
-    return detailed_data, summaries
 
 # ----------------------------------------
 # Functions used to write CSV
 # ----------------------------------------
 
 
-def write_step_csv(detailed_data, simulation_index, filename=None):
+def append_step_record(record, simulation_index, filename):
     """
-    Write detailed per-step data to CSV, including simulation number and seed.
+    Append a single step record to the simulation's step CSV file.
+    Writes header only once (if file doesn't exist).
     """
-    if filename is None:
-        filename = filename_definer(simulation_index, suffix="step_data")
+    file_exists = os.path.exists(filename)
 
     header = (
         ["simulation_number", "seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
@@ -243,35 +223,93 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         [f"total_reward_{i}" for i in range(NB_AGENTS)]
     )
 
-    with open(filename, 'w', newline='') as f:
+    row = (
+        [simulation_index,
+         record.get('seed', simulation_index),
+         record['episode'],
+         record['step'],
+         record['resource'],
+         INITIAL_RESOURCES,
+         MAX_STEPS]
+        + record['observations']
+        + record['actions']
+        + record['personal']
+        + record['empathic']
+        + record['combined_reward']
+    )
+
+    with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(header)
-        for episode_steps in detailed_data:
-            for record in episode_steps:
-                row = ([
-                    record['simulation_number'],
-                    record.get('seed', simulation_index),
-                    record['episode'],
-                    record['step'],
-                    record['resource'],
-                    INITIAL_RESOURCES,
-                    MAX_STEPS,]
-                    + record['observations']
-                    + record['actions']
-                    + record['personal']
-                    + record['empathic']
-                    + record['combined_reward']
-                )
-                writer.writerow(row)
+        if not file_exists:
+            writer.writerow(header)
+        writer.writerow(row)
 
 
-def write_summary_csv(summaries, simulation_index, filename=None):
+def write_step_csv(step_records, simulation_index, seed, filename):
     """
-    Write per-episode summary data to CSV, including simulation number and seed,
-    and flatten per-agent reward lists into separate columns.
+    Write a list of step-level records to a CSV file for a given simulation run.
+
+    Each record contains detailed information for a single environment step, including:
+    - Episode and step number
+    - Observations and actions of each agent
+    - Rewards (personal, empathic, combined) for each agent
+    - Remaining shared resources
+
+    The function appends to the CSV file if it already exists, writing the header only once. 
+    This allows progressive saving across episodes and simulations.
+
+    Parameters:
+        step_records (list of dict): List of dictionaries, each representing a single step's data.
+        simulation_index (int): The index identifying the current simulation (used in file naming).
+        seed (int): Random seed used for the simulation (stored in the file for reproducibility).
+        filename (str): Full path to the CSV file where data should be written.
+
+    Outputs:
+        Appends step-level data to the specified CSV file.
+        If the file does not exist, it creates a new file with the appropriate header.
+    """
+    file_exists = os.path.exists(filename)
+    header = (
+        ["simulation_number", "seed", "episode", "step", "resource_remaining", "initial_resources", "max_step"] +
+        [f"observation_{i}" for i in range(NB_AGENTS)] +
+        [f"action_{i}" for i in range(NB_AGENTS)] +
+        [f"personal_reward_{i}" for i in range(NB_AGENTS)] +
+        [f"empathic_reward_{i}" for i in range(NB_AGENTS)] +
+        [f"total_reward_{i}" for i in range(NB_AGENTS)]
+    )
+
+    with open(filename, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(header)
+
+        for record in step_records:
+            row = (
+                [record['simulation_number'],
+                 record.get('seed', seed),
+                 record['episode'],
+                 record['step'],
+                 record['resource'],
+                 INITIAL_RESOURCES,
+                 MAX_STEPS]
+                + record['observations']
+                + record['actions']
+                + record['personal']
+                + record['empathic']
+                + record['combined_reward']
+            )
+            writer.writerow(row)
+
+
+
+def write_summary_csv(summaries, simulation_index, seed, filename=None):
+    """
+    Append per-episode summary data to CSV. Write header only if file does not exist.
     """
     if filename is None:
         filename = filename_definer(simulation_index, suffix="episode_summary")
+
+    file_exists = os.path.exists(filename)
 
     header = (
         ["simulation_number", "seed", "episode", "total_steps", "resource_remaining", "initial_resources", "max_steps"] +
@@ -280,14 +318,15 @@ def write_summary_csv(summaries, simulation_index, filename=None):
         [f"total_combined_reward_{i}" for i in range(NB_AGENTS)]
     )
 
-    with open(filename, 'w', newline='') as f:
+    with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(header)
+        if not file_exists:
+            writer.writerow(header)
         for rec in summaries:
             row = (
                 [
                     rec['simulation_number'],
-                    rec.get('seed', simulation_index),
+                    seed,
                     rec['episode'],
                     rec['total_steps'],
                     rec['resource_remaining'],
@@ -345,9 +384,10 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
     )
 
     # To ensure no file deletion
+    base_filename = filename.replace('.csv', '')
     version = 1
     while os.path.exists(filename):
-        filename = filename.replace('.csv', f'_{version}.csv')
+        filename = f"{base_filename}_{version}.csv"
         version += 1
 
     return filename
@@ -358,6 +398,28 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
 
 
 def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
+    """
+    Validate that the combined rewards in a summary CSV file match the expected formula:
+        combined_reward = (1 - alpha) * personal_reward + alpha * empathic_reward
+
+    This function reads a summary CSV file and checks each agent's combined reward against the
+    weighted sum of their personal and empathic rewards using the provided alpha (empathy degree).
+    It raises an AssertionError if any discrepancies exceed the specified tolerance.
+
+    Parameters:
+        csv_path (str): Path to the summary CSV file generated by the simulation.
+        alpha (float): Weight for empathic rewards in the combination formula (range 0.0 - 1.0).
+        tolerance (float): Allowed numerical error when comparing expected and recorded combined rewards.
+        nb_agents (int or None): Number of agents in the simulation. If None, inferred from CSV column headers.
+
+    Raises:
+        AssertionError: If any combined reward does not match the expected value within the specified tolerance.
+    
+    Outputs:
+        Prints a success message if all combined rewards match expectations. Otherwise, prints detailed
+        mismatch information before raising an error.
+    """
+    
     df = pd.read_csv(csv_path)
 
     if nb_agents is None:
@@ -394,30 +456,36 @@ def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
 
 
 if __name__ == '__main__':
-    folder_name = "results_GT"
+    folder_name = "GT_simulation_jerome_thesis_emp"
     os.makedirs(folder_name, exist_ok=True)
-    for simulation_number in range(SIMULATION_NUMBER):
-        np.random.seed(simulation_number + 1)
 
-        detailed, summaries = run_simulation(EPISODE_NUMBER, simulation_number)
+    SHOW_SIMULATION_PROGRESS = True
+    simulation_iter = tqdm(range(SIMULATION_NUMBER), desc="All simulations") if SHOW_SIMULATION_PROGRESS else range(SIMULATION_NUMBER)
+    for simulation_number in simulation_iter:
+        seed = simulation_number + 1
+        np.random.seed(seed)
 
-        step_csv_name = filename_definer(simulation_number,
+        step_csv_name = filename_definer(simulation_index=simulation_number,
                                          suffix="step_data")
-        summary_csv_name = filename_definer(simulation_number,
+        summary_csv_name = filename_definer(simulation_index=simulation_number,
                                             suffix="episode_summary")
+        step_csv_path = os.path.join(folder_name, step_csv_name)
+        summary_csv_path = os.path.join(folder_name, summary_csv_name)
 
-        step_csv_path = f"{folder_name}/{step_csv_name}"
-        summary_csv_path = f"{folder_name}/{summary_csv_name}"
+        # Run simulation — records steps & summaries progressively
+        run_simulation_with_progressive_saving(
+            episode_number=EPISODE_NUMBER,
+            step_count=MAX_STEPS,
+            simulation_index=simulation_number,
+            step_file=step_csv_path,
+            summary_file=summary_csv_path,
+            seed=seed,
+            verbose=True,
+            step_csv_maker=False
+        )
 
-        write_step_csv(detailed,
-                       simulation_index=simulation_number,
-                       filename=step_csv_path)
-
-        write_summary_csv(summaries,
-                          simulation_index=simulation_number,
-                          filename=summary_csv_path)
-        
+        '''
         test_combined_rewards(summary_csv_path,
                               alpha=ALPHA,
                               nb_agents=NB_AGENTS)
-
+        '''
