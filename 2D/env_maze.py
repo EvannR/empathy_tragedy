@@ -71,7 +71,7 @@ class Maze2DEnv:
             self.state_size = base_state_size
         else:
             if self.emotion_type == "average":
-                self.state_size = base_state_size + 1
+                self.state_size = base_state_size
             elif self.emotion_type == "vector":
                 self.state_size = base_state_size + self.nb_agents - 1
             else:

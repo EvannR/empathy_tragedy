@@ -6,10 +6,12 @@ from utils_visualization import (
     create_maze_animation, 
     plot_agent_learning_curves
 )
-import numpy as np
-import random
-import csv
+
+from tqdm import tqdm  # for nice progress bars
 import os
+import csv
+import random
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.patches as patches
@@ -36,22 +38,22 @@ First experiment : 2 conditions
 # Constants for the simulation
 # ----------------------------------------
 
-SIMULATION_NUMBER = 2       # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 100          # number of episodes per simulation
-NB_AGENTS = 3
+SIMULATION_NUMBER = 1       # number of simulation runs (also used as seed per run)
+EPISODE_NUMBER = 200          # number of episodes per simulation
+NB_AGENTS = 1
 MAX_STEPS = 1000             # number of steps per episode
 MAZE_SIZE = (5, 5)        # size of the 2D maze
 INITIAL_RESOURCES = 20     # total resource units in the environment at start
 RESOURCE_DENSITY = 0.3      # percentage of cells with resources
 RESOURCE_REGEN_RATE = 0.05  # resource regeneration rate per step
-RESOURCE_DISTRIBUTION = "random"  # "random" or "clustered"
-ENVIRONMENT_TYPE = "stochastic"   # 'deterministic' or 'stochastic'
+RESOURCE_DISTRIBUTION = "clustered"  # "random" or "clustered"
+ENVIRONMENT_TYPE = "deterministic"   # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
 AGENT_TO_TEST = "DQN"       # 'DQN' or 'QLearning'
 EMOTION_TYPE = "average"    # 'average' or 'vector'
-SEE_EMOTIONS = True         # whether agents observe others' emotions
-ALPHA = 0.5                 # empathy degree (0.0 - 1.0)
+SEE_EMOTIONS = False         # whether agents observe others' emotions
+ALPHA = 0.0                 # empathy degree (0.0 - 1.0)
 BETA = 0.5                  # valuation of last meal
 SMOOTHING = 'linear'        # function transforming the meal history into an emotion : "sigmoid" OR "linear"
 SIGMOID_GAIN = 5.0
@@ -140,30 +142,37 @@ def initialize_agents_and_env():
 # Simulation logic for one simulation with multiple episodes
 # ----------------------------------------
 
-def run_simulation(episode_count, simulation_index):
-    """
-    Runs `episode_count` episodes in one simulation,
-    returns detailed per-step data and per-episode summaries.
-    """
+def run_simulation_with_progressive_saving(simulation_index, step_file, summary_file, seed,
+                                           episode_number=EPISODE_NUMBER, step_count=MAX_STEPS,
+                                           show_progress=True, save_step_data=False):
+    np.random.seed(seed)
     env = initialize_agents_and_env()
-    detailed_data = []
-    summaries = []
+    episode_iter = tqdm(range(episode_number), desc=f"Sim {simulation_index+1}/{SIMULATION_NUMBER}") if show_progress else range(episode_number)
 
-    for episode in range(episode_count):
+    for episode in episode_iter:
         obs = env.reset()
-        episode_steps = []
+        for i, agent in enumerate(env.agents):
+            if hasattr(agent, "start_episode"):
+                agent.start_episode(obs[i])
+
         total_personal = np.zeros(NB_AGENTS)
         total_empathic = np.zeros(NB_AGENTS)
         total_combined = np.zeros(NB_AGENTS)
-        
-        # Optionally visualize initial state
-        if episode == 0 and simulation_index == 0:
-            print(f"Initial Maze State (Episode {episode}):")
-            print(env.get_maze_visualization())
-            print("----------------------------")
+        episode_step_records = []
 
-        for step in range(MAX_STEPS):
-            actions = [agent.select_action(obs[i]) for i, agent in enumerate(env.agents)]
+        last_rewards = [0.0] * NB_AGENTS
+        last_dones = [False] * NB_AGENTS
+
+        for step in range(step_count):
+            actions = []
+            for i, agent in enumerate(env.agents):
+                if step == 0:
+                    action = agent.select_action(obs[i])
+                    agent.current_state = obs[i]
+                    agent.previous_action = action
+                else:
+                    action = agent.step(obs[i], last_rewards[i], last_dones[i])
+                actions.append(action)
             next_obs, rewards, done, info = env.make_step(actions)
 
             prs = np.array(info['personal_satisfaction'])
@@ -174,48 +183,62 @@ def run_simulation(episode_count, simulation_index):
             total_empathic += ers
             total_combined += crs
 
-            episode_steps.append({
-                'seed': simulation_index,
-                'episode': episode,
-                'step': step,
-                'resource_remaining': info['remaining_resources'],
-                'positions': info['agent_positions'],
-                'observations': [o.tolist() for o in obs],
-                'actions': actions,
-                'personal': prs.tolist(),
-                'empathic': ers.tolist(),
-                'combined': crs.tolist()
-            })
-            
-            # Optionally print some debug info every 100 steps
-            if step % 100 == 0 and episode == 0 and simulation_index == 0:
-                print(f"Step {step}, Resources Remaining: {info['remaining_resources']}")
-                print(f"Agent Positions: {info['agent_positions']}")
-                print(f"Actions: {actions}")
-                print("----------------------------")
+            if save_step_data:
+                episode_step_records.append({
+                    'simulation_number': simulation_index,
+                    'seed': seed,
+                    'episode': episode,
+                    'step': step,
+                    'resource_remaining': info['remaining_resources'],
+                    'positions': info['agent_positions'],
+                    'actions': actions,
+                    'personal': prs.tolist(),
+                    'empathic': ers.tolist(),
+                    'combined': crs.tolist()
+                })
 
+            last_rewards = rewards
+            last_dones = [done for _ in range(NB_AGENTS)]
             obs = next_obs
             if done:
                 break
-                
-        # Visualize final state of the episode
-        if episode == 0 and simulation_index == 0:
-            print(f"Final Maze State (Episode {episode}, Step {step}):")
-            print(env.get_maze_visualization())
-            print("----------------------------")
 
-        detailed_data.append(episode_steps)
-        summaries.append({
-            'seed': simulation_index,
+        # Save step data for this episode
+        if save_step_data and episode_step_records:
+            write_step_csv(episode_step_records, simulation_index, filename=step_file)
+
+        # Write summary for this episode immediately
+        summary = {
+            'simulation_number': simulation_index,
+            'seed': seed,
             'episode': episode,
             'total_steps': step + 1,
             'resource_remaining': info['remaining_resources'],
             'personal_totals': total_personal.tolist(),
             'empathic_totals': total_empathic.tolist(),
             'combined_totals': total_combined.tolist()
-        })
+        }
+        write_summary_csv([summary], simulation_index, filename=summary_file)
+        
+        # Optional: print progress information (or use tqdm bar postfix)
+        if show_progress and ((episode + 1) % 100 == 0 or episode == 0 or episode == episode_number - 1):
+            divisor = (step + 1)
+            # Fallback to nan if no steps in episode
+            if divisor > 0 and len(total_personal) > 0:
+                avg_personal = np.sum(total_personal) / divisor
+                avg_empathic = np.sum(total_empathic) / divisor if np.any(total_empathic) else 0.0
+                avg_combined = np.sum(total_combined) / divisor if np.any(total_combined) else 0.0
+            else:
+                avg_personal = float('nan')
+                avg_empathic = float('nan')
+                avg_combined = float('nan')
+            print(f"Sim {simulation_index+1}, Ep {episode+1}/{episode_number} | "
+                  f"Steps: {step+1}, "
+                  f"Avg Pers: {avg_personal:.3f}, "
+                  f"Avg Emp: {avg_empathic:.3f}, "
+                  f"Avg Comb: {avg_combined:.3f}, "
+                  f"Resources left: {info['remaining_resources']}")
 
-    return detailed_data, summaries
 
 # ----------------------------------------
 # Visualization functions
@@ -323,15 +346,13 @@ def visualize_rewards(summaries, save_path=None):
 # Functions used to write CSV
 # ----------------------------------------
 
-def write_step_csv(detailed_data, simulation_index, filename=None):
+def write_step_csv(step_records, simulation_index, filename):
     """
     Write detailed per-step data to CSV, including seed and episode.
     """
-    if filename is None:
-        filename = filename_definer(simulation_index, suffix="step_data")
-
+    file_exists = os.path.exists(filename)
     header = (
-        ["seed", "episode", "step", "resource_remaining"] +
+        ["simulation_number", "seed", "episode", "step", "resource_remaining"] +
         [f"agent_{i}_x" for i in range(NB_AGENTS)] +
         [f"agent_{i}_y" for i in range(NB_AGENTS)] +
         [f"action_{i}" for i in range(NB_AGENTS)] +
@@ -339,25 +360,23 @@ def write_step_csv(detailed_data, simulation_index, filename=None):
         [f"empathic_{i}" for i in range(NB_AGENTS)] +
         [f"combined_{i}" for i in range(NB_AGENTS)]
     )
-
-    with open(filename, 'w', newline='') as f:
+    with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(header)
-        for episode_steps in detailed_data:
-            for record in episode_steps:
-                # Flatten agent positions
-                position_values = []
-                for x, y in record['positions']:
-                    position_values.extend([x, y])
-                
-                row = [
-                    record['seed'], 
-                    record['episode'],
-                    record['step'], 
-                    record['resource_remaining']
-                ] + position_values + record['actions'] + record['personal'] + record['empathic'] + record['combined']
-                
-                writer.writerow(row)
+        if not file_exists:
+            writer.writerow(header)
+        for record in step_records:
+            pos_values = []
+            for x, y in record['positions']:
+                pos_values.extend([x, y])
+            row = (
+                [record['seed'], record['episode'], record['step'], record['resource_remaining']]
+                + pos_values
+                + record['actions']
+                + record['personal']
+                + record['empathic']
+                + record['combined']
+            )
+            writer.writerow(row)
 
 
 def write_summary_csv(summaries, simulation_index, filename=None):
@@ -366,26 +385,26 @@ def write_summary_csv(summaries, simulation_index, filename=None):
     """
     if filename is None:
         filename = filename_definer(simulation_index, suffix="episode_summary")
-
+    file_exists = os.path.exists(filename)
     header = (
-        ['seed', 'episode', 'total_steps', 'resource_remaining'] +
+        ['simulation_number', 'seed', 'episode', 'total_steps', 'resource_remaining'] +
         [f"total_personal_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_empathic_reward_{i}" for i in range(NB_AGENTS)] +
         [f"total_combined_reward_{i}" for i in range(NB_AGENTS)]
     )
-
-    with open(filename, 'w', newline='') as f:
+    with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(header)
+        if not file_exists:
+            writer.writerow(header)
         for rec in summaries:
-            row = [
-                rec['seed'], rec['episode'],
-                rec['total_steps'], rec['resource_remaining']
-            ] + sum([
-                [rec['personal_totals'][i], rec['empathic_totals'][i], rec['combined_totals'][i]]
-                for i in range(NB_AGENTS)
-            ], [])
+            row = (
+                [rec['simulation_number'], rec['seed'], rec['episode'], rec['total_steps'], rec['resource_remaining']]
+                + rec['personal_totals']
+                + rec['empathic_totals']
+                + rec['combined_totals']
+            )
             writer.writerow(row)
+
 
 # ----------------------------------------
 # Filename builder
@@ -393,22 +412,28 @@ def write_summary_csv(summaries, simulation_index, filename=None):
 
 def filename_definer(simulation_index: int, suffix: str) -> str:
     """
-    Builds a filename for results.
+    Builds a filename matching the original format:
+    results_<sim>_<episodes>_<agent>_<emotion>_<see_emotions>_<alpha>_<beta>_
+             <smoothing>_<threshold>_<rounder>_<params>_<random>_<suffix>.csv
+
+             To ensure not overwriting, a version number is added if a file already exists.
     """
     if AGENT_TO_TEST == "DQN":
         param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min",
                        "batch_size", "hidden_size", "update_target_every"]
         params = PARAMS_DQN
-    else:
+    elif AGENT_TO_TEST == "QLearning":
         param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min"]
         params = PARAMS_QLEARNING
+    else:
+        raise ValueError("Wrong agent type")
 
     param_values = "_".join(str(params[key]) for key in param_order)
     random_suffix = ''.join(str(random.randint(0, 9)) for _ in range(6))
     see_emotions_str = str(SEE_EMOTIONS)
 
     filename = (
-        f"maze2d_results_{simulation_index:03d}_"
+        f"results_{simulation_index:03d}_"
         f"{EPISODE_NUMBER}_"
         f"{AGENT_TO_TEST}_"
         f"{EMOTION_TYPE}_"
@@ -424,9 +449,10 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
     )
 
     # To ensure no file deletion
+    base_filename = filename.replace('.csv', '')
     version = 1
     while os.path.exists(filename):
-        filename = filename.replace('.csv', f'_{version}.csv')
+        filename = f"{base_filename}_{version}.csv"
         version += 1
 
     return filename
@@ -434,29 +460,32 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
 # ----------------------------------------
 # Main entry
 # ----------------------------------------
-
 if __name__ == '__main__':
-        # Create output directories if they don't exist
-    os.makedirs("results_maz2d", exist_ok=True)
-    os.makedirs("visualizations", exist_ok=True)
+    os.makedirs("results", exist_ok=True)
+    SHOW_SIMULATION_PROGRESS = True
+    SAVE_STEP_DATA = False  # Set to True if you want step-by-step CSVs
+
+    simulation_iter = tqdm(range(SIMULATION_NUMBER), desc="All simulations") if SHOW_SIMULATION_PROGRESS else range(SIMULATION_NUMBER)
+    for simulation_number in simulation_iter:
+        seed = simulation_number + 1
+        np.random.seed(seed)
+
+        step_csv_name = filename_definer(simulation_index=simulation_number, suffix="step_data")
+        summary_csv_name = filename_definer(simulation_index=simulation_number, suffix="episode_summary")
+        step_csv_path = os.path.join("results", step_csv_name)
+        summary_csv_path = os.path.join("results", summary_csv_name)
+
+        run_simulation_with_progressive_saving(
+            simulation_index=simulation_number,
+            step_file=step_csv_path,
+            summary_file=summary_csv_path,
+            seed=seed,
+            episode_number=EPISODE_NUMBER,
+            step_count=MAX_STEPS,
+            show_progress=SHOW_SIMULATION_PROGRESS,
+            save_step_data=SAVE_STEP_DATA
+        )
     
-    for simulation_number in range(SIMULATION_NUMBER):
-        print(f"Starting simulation {simulation_number + 1}/{SIMULATION_NUMBER}")
-        np.random.seed(simulation_number + 1)
-
-        # Run simulation
-        detailed, summaries = run_simulation(episode_count=EPISODE_NUMBER, simulation_index=simulation_number)
-        
-        # Write CSV data
-        step_csv = filename_definer(simulation_number, suffix="step_data")
-        summary_csv = filename_definer(simulation_number, suffix="episode_summary")
-        
-        step_csv_path = f"results/{step_csv}"
-        summary_csv_path = f"results/{summary_csv}"
-        
-        write_step_csv(detailed, simulation_number, filename=step_csv_path)
-        write_summary_csv(summaries, simulation_number, filename=summary_csv_path)
-
         '''
         # Generate visualizations for first simulation only
         if simulation_number == 0:
@@ -513,6 +542,8 @@ if __name__ == '__main__':
                 final_viz_path = os.path.join(viz_dir, f"maze_episode_{episode_idx}_final.png")
                 visualize_maze(env, episode=episode_idx, step=final_step, save_path=final_viz_path)
         
+        '''
+        print("=== ALL SIMULATIONS COMPLETE ===")
         # print(f"Completed simulation {simulation_number + 1}/{SIMULATION_NUMBER}")
     
     # print("All simulations completed successfully!")
@@ -524,5 +555,3 @@ if __name__ == '__main__':
     # print("2. Compare Q-Learning vs DQN performance")
     # print("3. Analyze the effect of seeing emotions (SEE_EMOTIONS) on agent behavior")
     # print("4. Experiment with different resource distributions (RESOURCE_DISTRIBUTION)")
-
-    '''
