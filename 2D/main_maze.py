@@ -39,21 +39,21 @@ First experiment : 2 conditions
 # ----------------------------------------
 
 SIMULATION_NUMBER = 1       # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 200          # number of episodes per simulation
+EPISODE_NUMBER = 5000          # number of episodes per simulation
 NB_AGENTS = 1
 MAX_STEPS = 1000             # number of steps per episode
 MAZE_SIZE = (5, 5)        # size of the 2D maze
-INITIAL_RESOURCES = 20     # total resource units in the environment at start
+INITIAL_RESOURCES = 50     # total resource units in the environment at start
 RESOURCE_DENSITY = 0.3      # percentage of cells with resources
 RESOURCE_REGEN_RATE = 0.05  # resource regeneration rate per step
 RESOURCE_DISTRIBUTION = "clustered"  # "random" or "clustered"
-ENVIRONMENT_TYPE = "deterministic"   # 'deterministic' or 'stochastic'
+ENVIRONMENT_TYPE = "stochastic"   # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
 AGENT_TO_TEST = "DQN"       # 'DQN' or 'QLearning'
 EMOTION_TYPE = "average"    # 'average' or 'vector'
-SEE_EMOTIONS = False         # whether agents observe others' emotions
-ALPHA = 0.0                 # empathy degree (0.0 - 1.0)
+SEE_EMOTIONS = True         # whether agents observe others' emotions
+ALPHA = 0.5                 # empathy degree (0.0 - 1.0)
 BETA = 0.5                  # valuation of last meal
 SMOOTHING = 'linear'        # function transforming the meal history into an emotion : "sigmoid" OR "linear"
 SIGMOID_GAIN = 5.0
@@ -225,9 +225,9 @@ def run_simulation_with_progressive_saving(simulation_index, step_file, summary_
             divisor = (step + 1)
             # Fallback to nan if no steps in episode
             if divisor > 0 and len(total_personal) > 0:
-                avg_personal = np.sum(total_personal) / divisor
-                avg_empathic = np.sum(total_empathic) / divisor if np.any(total_empathic) else 0.0
-                avg_combined = np.sum(total_combined) / divisor if np.any(total_combined) else 0.0
+                avg_personal = np.sum(total_personal) / NB_AGENTS
+                avg_empathic = np.sum(total_empathic) / NB_AGENTS if np.any(total_empathic) else 0.0
+                avg_combined = np.sum(total_combined) / NB_AGENTS if np.any(total_combined) else 0.0
             else:
                 avg_personal = float('nan')
                 avg_empathic = float('nan')
