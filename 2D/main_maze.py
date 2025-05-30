@@ -52,8 +52,8 @@ ENVIRONMENT_TYPE = "stochastic"   # 'deterministic' or 'stochastic'
 # Agent & emotion settings
 AGENT_TO_TEST = "DQN"       # 'DQN' or 'QLearning'
 EMOTION_TYPE = "average"    # 'average' or 'vector'
-SEE_EMOTIONS = True         # whether agents observe others' emotions
-ALPHA = 0.5                 # empathy degree (0.0 - 1.0)
+SEE_EMOTIONS = False         # whether agents observe others' emotions
+ALPHA = 0                 # empathy degree (0.0 - 1.0)
 BETA = 0.5                  # valuation of last meal
 SMOOTHING = 'linear'        # function transforming the meal history into an emotion : "sigmoid" OR "linear"
 SIGMOID_GAIN = 5.0
@@ -223,6 +223,7 @@ def run_simulation_with_progressive_saving(simulation_index, step_file, summary_
         # Optional: print progress information (or use tqdm bar postfix)
         if show_progress and ((episode + 1) % 100 == 0 or episode == 0 or episode == episode_number - 1):
             divisor = (step + 1)
+            #print("DEBUG:", NB_AGENTS, total_personal, total_empathic, total_combined)
             # Fallback to nan if no steps in episode
             if divisor > 0 and len(total_personal) > 0:
                 avg_personal = np.sum(total_personal) / NB_AGENTS

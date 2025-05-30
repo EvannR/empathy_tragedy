@@ -398,8 +398,11 @@ class SocialRewardCalculator:
         empathic_reward = []
         for idx, emo in enumerate(emotions):
             # moyenne des émotions des autres agents
-            others_emo = np.mean([e for j, e in enumerate(emotions) if j != idx])
-            # formation of the list of empathic reward
+            other_emotions = [e for j, e in enumerate(emotions) if j != idx]
+            if len(other_emotions) == 0:
+                others_emo = 0.0  # <- safe default for solo agent
+            else:
+                others_emo = np.mean(other_emotions)
             empathic_reward.append(others_emo)
 
         # 4) total reward: on garde la satisfaction perso + empathic reward
