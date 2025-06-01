@@ -98,7 +98,7 @@ class Maze2DEnv:
         # Place resources based on distribution type
         if self.resource_distribution == "random":
             # Randomly distribute resources
-            num_resource_cells = int(self.maze_size[0] * self.maze_size[1] * self.resource_density)
+            num_resource_cells = self.initial_resources
             flat_indices = np.random.choice(
                 self.maze_size[0] * self.maze_size[1],
                 size=num_resource_cells,
@@ -110,7 +110,7 @@ class Maze2DEnv:
                 y = idx // self.maze_size[0]
                 
                 # Each resource cell has a random amount between 1-5 units
-                self.maze[x, y] = np.random.randint(1, 6)
+                self.maze[x, y] = 1
         
         elif self.resource_distribution == "clustered":
             # Create a few cluster centers
