@@ -11,50 +11,64 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
 from scipy.stats import shapiro, levene, ttest_ind, mannwhitneyu, f_oneway, kruskal
+from itertools import combinations
+from typing import Dict
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
 
 # Filename patterns for parsing metadata from filenames
-GameTheoretic_filename_pattern_DQN = re.compile(
-    r"results_(?P<simulation_index>\d{3})(?P<episodes>\d+)_DQN"
-    r"(?P<emotion>[^]+)(?P<see_emotions>[^]+)"
-    r"(?P<alpha>[\d.]+)(?P<beta>[\d.]+)(?P<smoothing>[^]+)(?P<threshold>[\d.]+)(?P<rounder>[\d.]+)"
-    r"(?P<learning_rate>[\d.]+)(?P<gamma>[\d.]+)(?P<epsilon>[\d.]+)(?P<epsilon_decay>[\d.]+)(?P<epsilon_min>[\d.]+)_"
-    r"(?P<batch_size>[\d.]+)(?P<hidden_size>[\d.]+)(?P<update_target_every>[\d.]+)_"
-    r"(?P<random_suffix>\d{6})(?P<suffix>[a-zA-Z]+[a-zA-Z]+)\.csv"
+# Define the pattern of filenames
+
+GameTheoretic_filename_pattern_DQN =  re.compile(r"results_(?P<simulation_index>\d{3})_(?P<episodes>\d+)_DQN_"
+                                                r"(?P<emotion>[^_]+)_(?P<see_emotions>[^_]+)_"
+                                                r"(?P<alpha>[\d.]+)_(?P<beta>[\d.]+)_(?P<smoothing>[^_]+)_(?P<threshold>[\d.]+)_(?P<rounder>[\d.]+)_"
+                                                r"(?P<learning_rate>[\d.]+)_(?P<gamma>[\d.]+)_(?P<epsilon>[\d.]+)_(?P<epsilon_decay>[\d.]+)_(?P<epsilon_min>[\d.]+)_"
+                                                r"(?P<batch_size>[\d.]+)_(?P<hidden_size>[\d.]+)_(?P<update_target_every>[\d.]+)_"
+                                                r"(?P<random_suffix>\d{6})_(?P<suffix>[a-zA-Z]+_[a-zA-Z]+)\.csv"
 )
-GameTheoretic_filename_pattern_QL = re.compile(
-    r"results_(?P<simulation_index>\d{3})(?P<episodes>\d+)_QLearning"
-    r"(?P<emotion>[^]+)(?P<see_emotions>[^]+)"
-    r"(?P<alpha>[\d.]+)(?P<beta>[\d.]+)(?P<smoothing>[^]+)(?P<threshold>[\d.]+)(?P<rounder>[\d.]+)"
-    r"(?P<learning_rate>[\d.]+)(?P<gamma>[\d.]+)(?P<epsilon>[\d.]+)(?P<epsilon_decay>[\d.]+)(?P<epsilon_min>[\d.]+)_"
-    r"(?P<random_suffix>\d{6})(?P<suffix>[a-zA-Z]+[a-zA-Z]+)\.csv"
+
+GameTheoretic_filename_pattern_QL = re.compile(r"results_(?P<simulation_index>\d{3})_(?P<episodes>\d+)_QLearning_"
+                                              r"(?P<emotion>[^_]+)_(?P<see_emotions>[^_]+)_"
+                                              r"(?P<alpha>[\d.]+)_(?P<beta>[\d.]+)_(?P<smoothing>[^_]+)_(?P<threshold>[\d.]+)_(?P<rounder>[\d.]+)_"
+                                              r"(?P<learning_rate>[\d.]+)_(?P<gamma>[\d.]+)_(?P<epsilon>[\d.]+)_(?P<epsilon_decay>[\d.]+)_(?P<epsilon_min>[\d.]+)_"
+                                              r"(?P<random_suffix>\d{6})_(?P<suffix>[a-zA-Z]+_[a-zA-Z]+)\.csv"
 )
+
+
 Maze2D_filename_order_QL = re.compile(
-    r"maze2d_results_(?P<simulation_index>\d{3})(?P<episodes>\d+)_QLearning"
-    r"(?P<emotion>[^]+)(?P<see_emotions>[^]+)"
-    r"(?P<alpha>[\d.]+)(?P<beta>[\d.]+)(?P<smoothing>[^]+)(?P<threshold>[\d.]+)(?P<rounder>[\d.]+)"
-    r"(?P<learning_rate>[\d.]+)(?P<gamma>[\d.]+)(?P<epsilon>[\d.]+)(?P<epsilon_decay>[\d.]+)(?P<epsilon_min>[\d.]+)_"
-    r"(?P<random_suffix>\d{6})(?P<suffix>[a-zA-Z]+[a-zA-Z]+)\.csv"
+    r"maze2d_results_(?P<simulation_index>\d{3})_(?P<episodes>\d+)_QLearning_"
+    r"(?P<emotion>[^_]+)_(?P<see_emotions>[^_]+)_"
+    r"(?P<alpha>[\d.]+)_(?P<beta>[\d.]+)_(?P<smoothing>[^_]+)_(?P<threshold>[\d.]+)_(?P<rounder>[\d.]+)_"
+    r"(?P<learning_rate>[\d.]+)_(?P<gamma>[\d.]+)_(?P<epsilon>[\d.]+)_(?P<epsilon_decay>[\d.]+)_(?P<epsilon_min>[\d.]+)_"
+    r"(?P<random_suffix>\d{6})_(?P<suffix>[a-zA-Z]+_[a-zA-Z]+)\.csv"
 )
+
 Maze2D_filename_order_DQN = re.compile(
-    r"maze2d_results_(?P<simulation_index>\d{3})(?P<episodes>\d+)_DQN"
-    r"(?P<emotion>[^]+)(?P<see_emotions>[^]+)"
-    r"(?P<alpha>[\d.]+)(?P<beta>[\d.]+)(?P<smoothing>[^]+)(?P<threshold>[\d.]+)(?P<rounder>[\d.]+)"
-    r"(?P<learning_rate>[\d.]+)(?P<gamma>[\d.]+)(?P<epsilon>[\d.]+)(?P<epsilon_decay>[\d.]+)(?P<epsilon_min>[\d.]+)_"
-    r"(?P<batch_size>[\d.]+)(?P<hidden_size>[\d.]+)(?P<update_target_every>[\d.]+)_"
-    r"(?P<random_suffix>\d{6})(?P<suffix>[a-zA-Z]+[a-zA-Z]+)\.csv"
+    r"maze2d_results_(?P<simulation_index>\d{3})_(?P<episodes>\d+)_DQN_"
+    r"(?P<emotion>[^_]+)_(?P<see_emotions>[^_]+)_"
+    r"(?P<alpha>[\d.]+)_(?P<beta>[\d.]+)_(?P<smoothing>[^_]+)_(?P<threshold>[\d.]+)_(?P<rounder>[\d.]+)_"
+    r"(?P<learning_rate>[\d.]+)_(?P<gamma>[\d.]+)_(?P<epsilon>[\d.]+)_(?P<epsilon_decay>[\d.]+)_(?P<epsilon_min>[\d.]+)_"
+    r"(?P<batch_size>[\d.]+)_(?P<hidden_size>[\d.]+)_(?P<update_target_every>[\d.]+)_"
+    r"(?P<random_suffix>\d{6})_(?P<suffix>[a-zA-Z]+_[a-zA-Z]+)\.csv"
 )
+
 FILENAME_PATTERNS = [
     GameTheoretic_filename_pattern_DQN,
     GameTheoretic_filename_pattern_QL,
     Maze2D_filename_order_DQN,
     Maze2D_filename_order_QL
 ]
+
 FILENAME_PATTERNS_PAIR = [
     ("Gametheoretic", GameTheoretic_filename_pattern_DQN),
     ("Gametheoretic", GameTheoretic_filename_pattern_QL),
     ("maze2d", Maze2D_filename_order_DQN),
     ("maze2d", Maze2D_filename_order_QL)
 ]
+
+############################################################
+##### PROCESSING OF FILES
+############################################################
 
 def parse_results_filenames(folder_path: str, filename_patterns=None) -> pd.DataFrame:
     """
@@ -633,6 +647,10 @@ def compute_step_number_depletion(df: pd.DataFrame) -> None:
     df['resource_quantity_depletion'] = 1 - df['resource_remaining'] / df['initial_resources']
     df['step_number_depletion'] = 1 - df['total_steps'] / df['max_steps']
 
+############################################################
+##### Plotting
+############################################################
+
 def plot_mean_and_range_across_simulations(
     df: pd.DataFrame,
     value_col: str,
@@ -744,119 +762,169 @@ def plot_avg_steps_to_depletion(
     plt.tight_layout()
     plt.show()
 
+############################################################
+##### STATISTICAL TESTS
+############################################################
+
+
 def cohen_d(x, y):
-    """
-    Compute Cohen's d for independent samples.
-    """
-    nx = len(x)
-    ny = len(y)
+    """Calculate Cohen's d effect size for two independent samples."""
+    nx, ny = len(x), len(y)
     dof = nx + ny - 2
-    pooled_std = np.sqrt(((nx -1)*np.var(x, ddof=1) + (ny -1)*np.var(y, ddof=1)) / dof)
-    return (np.mean(x) - np.mean(y)) / pooled_std
+    pooled_std = np.sqrt(((nx - 1) * np.std(x, ddof=1) ** 2 + (ny - 1) * np.std(y, ddof=1) ** 2) / dof)
+    return (np.mean(x) - np.mean(y)) / pooled_std if pooled_std > 0 else 0
 
-def rank_biserial_u(u_stat, n1, n2):
+
+def rank_biserial_u(u, nx, ny):
+    """Calculate rank-biserial correlation effect size from Mann-Whitney U."""
+    return 1 - (2 * u) / (nx * ny)
+
+
+def statistical_test(df, group_col, value_col, alpha=0.05):
     """
-    Convert Mann-Whitney U statistic to rank-biserial correlation.
-    """
-    return 1 - (2 * u_stat) / (n1 * n2)
+    Perform group comparison tests with descriptive stats, normality and variance tests,
+    and appropriate statistical tests (t-tests, ANOVA, nonparametric alternatives).
+    Returns detailed results including APA-style summaries.
 
-def statistical_test(df: pd.DataFrame, group_col: str, value_col: str, alpha: float = 0.05):
-    """
-    Perform statistical comparison between groups in the DataFrame.
-    Automatically tests for normality (Shapiro-Wilk) and equality of variances (Levene).
-    For two groups:
-      - If both normal and equal variances: perform Student's t-test.
-      - If both normal but unequal variances: perform Welch's t-test.
-      - Else: perform Mann-Whitney U test.
-    For more than two groups:
-      - If all groups are normal and variances equal: perform one-way ANOVA and Tukey HSD post-hoc if significant.
-      - Else: perform Kruskal-Wallis test and pairwise Mann-Whitney with Bonferroni correction if significant.
-
-    Args:
-        df (pd.DataFrame): Input DataFrame.
-        group_col (str): Column name for group labels.
-        value_col (str): Column name for numeric values.
-        alpha (float): Significance level (default 0.05).
-
-    Returns:
-        dict: Dictionary containing test results and post-hoc comparisons (if applicable).
+    Returns dict with keys:
+        - 'groups': list of group labels
+        - 'descriptive': {group: {mean, std, median, n}}
+        - 'normal': bool (all groups normal)
+        - 'normality_test': {group: Shapiro-Wilk p-value or None}
+        - 'equal_variance': bool (Levene test)
+        - 'levene_test': {'statistic', 'p_value'}
+        - 'test': test name
+        - 'statistic' or 'anova_stat': test statistic
+        - 'p_value' or 'anova_p': p-value
+        - 'effect_size': float (if applicable)
+        - 'apa': APA-style summary string
+        - 'posthoc': list of dicts with post-hoc results (if applicable)
+        - 'posthoc_table': Tukey summary (if applicable)
+        - 'pairwise': list of pairwise test dicts (for nonparametric posthoc, if applicable)
     """
     results = {}
     groups = df[group_col].dropna().unique()
     data = [df[df[group_col] == grp][value_col].dropna() for grp in groups]
-    results['groups'] = groups
+    results['groups'] = list(groups)
 
-    # Check normality for each group
-    normal_p = []
+    # Descriptive statistics
+    descriptives = {}
+    for grp, values in zip(groups, data):
+        descriptives[grp] = {
+            'mean': np.mean(values),
+            'std': np.std(values, ddof=1),
+            'median': np.median(values),
+            'n': len(values)
+        }
+    results['descriptive'] = descriptives
+
+    # Shapiro-Wilk normality test
+    normality_test = {}
+    normal_flags = []
     for grp, values in zip(groups, data):
         if len(values) < 3:
-            normal_p.append(False)
+            normality_test[grp] = None
+            normal_flags.append(False)
         else:
-            stat, p = shapiro(values)
-            normal_p.append(p >= alpha)
-    equal_var = True
-    if len(groups) >= 2:
-        try:
-            stat_levene, p_levene = levene(*data)
-            equal_var = p_levene > alpha
-        except Exception:
-            equal_var = False
+            _, p = shapiro(values)
+            normality_test[grp] = p
+            normal_flags.append(p >= alpha)
+    results['normality_test'] = normality_test
+    results['normal'] = all(normal_flags)
 
-    results['normal'] = all(normal_p)
-    results['equal_variance'] = equal_var
+    # Levene’s test for equal variances
+    try:
+        stat_levene, p_levene = levene(*data)
+        results['levene_test'] = {'statistic': stat_levene, 'p_value': p_levene}
+        results['equal_variance'] = p_levene >= alpha
+    except Exception:
+        results['levene_test'] = {'statistic': None, 'p_value': None}
+        results['equal_variance'] = False
 
+    # Choose and perform test
     if len(groups) == 2:
         g1, g2 = data
+        name1, name2 = groups
         if results['normal']:
-            if equal_var:
+            if results['equal_variance']:
                 stat, pval = ttest_ind(g1, g2, equal_var=True)
                 test_name = "Student's t-test"
             else:
                 stat, pval = ttest_ind(g1, g2, equal_var=False)
                 test_name = "Welch's t-test"
-            results['statistic'] = stat
-            results['p_value'] = pval
-            results['test'] = test_name
-            results['effect_size'] = cohen_d(g1, g2)
+            effect = cohen_d(g1, g2)
+            apa = f"{test_name}: t({len(g1)+len(g2)-2}) = {stat:.2f}, p = {pval:.3f}, d = {effect:.2f}"
         else:
             u_stat, pval = mannwhitneyu(g1, g2, alternative='two-sided')
-            results['statistic'] = u_stat
-            results['p_value'] = pval
-            results['test'] = "Mann-Whitney U"
-            results['effect_size'] = rank_biserial_u(u_stat, len(g1), len(g2))
+            effect = rank_biserial_u(u_stat, len(g1), len(g2))
+            test_name = "Mann-Whitney U"
+            apa = f"{test_name}: U = {u_stat:.2f}, p = {pval:.3f}, r = {effect:.2f}"
+
+        results.update({
+            'test': test_name,
+            'statistic': stat if results['normal'] else u_stat,
+            'p_value': pval,
+            'effect_size': effect,
+            'apa': apa
+        })
+
     else:
         # More than two groups
-        if results['normal'] and equal_var:
+        if results['normal'] and results['equal_variance']:
             stat, pval = f_oneway(*data)
-            results['anova_stat'] = stat
-            results['anova_p'] = pval
-            results['test'] = "ANOVA"
+            results.update({
+                'test': "ANOVA",
+                'anova_stat': stat,
+                'anova_p': pval,
+                'apa': f"ANOVA: F({len(groups)-1}, {len(df)-len(groups)}) = {stat:.2f}, p = {pval:.3f}"
+            })
             if pval < alpha:
-                # Post-hoc Tukey HSD
                 try:
-                    from statsmodels.stats.multicomp import pairwise_tukeyhsd
-                    df_nonan = df.dropna(subset=[group_col, value_col])
-                    tukey = pairwise_tukeyhsd(endog=df_nonan[value_col], groups=df_nonan[group_col], alpha=alpha)
-                    results['posthoc'] = tukey.summary()
+                    df_clean = df.dropna(subset=[group_col, value_col])
+                    tukey = pairwise_tukeyhsd(endog=df_clean[value_col], groups=df_clean[group_col], alpha=alpha)
+                    results['posthoc_table'] = tukey.summary()
+                    comparisons = []
+                    # Tukey results order matches pairs in groupsunique order
+                    for (grp1, grp2), diff, p_adj in zip(combinations(tukey.groupsunique, 2), tukey.meandiffs, tukey.pvalues):
+                        apa = f"Tukey HSD: {grp1} vs {grp2}, mean diff = {diff:.2f}, p_adj = {p_adj:.3f}"
+                        comparisons.append({
+                            'group1': grp1,
+                            'group2': grp2,
+                            'mean_diff': diff,
+                            'p_adj': p_adj,
+                            'apa': apa
+                        })
+                    results['posthoc'] = comparisons
                 except ImportError:
-                    results['posthoc'] = "statsmodels not installed, Tukey HSD skipped"
+                    results['posthoc'] = "statsmodels not installed"
+
         else:
             stat, pval = kruskal(*data)
-            results['anova_stat'] = stat
-            results['anova_p'] = pval
-            results['test'] = "Kruskal-Wallis"
+            results.update({
+                'test': "Kruskal-Wallis",
+                'anova_stat': stat,
+                'anova_p': pval,
+                'apa': f"Kruskal-Wallis: H = {stat:.2f}, p = {pval:.3f}"
+            })
             if pval < alpha:
-                # Pairwise Mann-Whitney with Bonferroni correction
-                comparisons = []
-                from itertools import combinations
+                pairwise = []
                 m = len(groups)
-                for (i, grp1), (j, grp2) in combinations(list(enumerate(groups)), 2):
-                    g1 = data[i]
-                    g2 = data[j]
+                for (i, grp1), (j, grp2) in combinations(enumerate(groups), 2):
+                    g1, g2 = data[i], data[j]
                     u_stat, p_pair = mannwhitneyu(g1, g2, alternative='two-sided')
-                    # Bonferroni adjustment
-                    p_adj = min(p_pair * (m*(m-1)/2), 1.0)
-                    comparisons.append((grp1, grp2, u_stat, p_pair, p_adj))
-                results['pairwise'] = comparisons
+                    p_adj = min(p_pair * (m * (m - 1) / 2), 1.0)
+                    effect = rank_biserial_u(u_stat, len(g1), len(g2))
+                    apa = (f"Mann-Whitney U: {grp1} vs {grp2}, U = {u_stat:.2f}, "
+                           f"p = {p_pair:.3f}, p_adj = {p_adj:.3f}, r = {effect:.2f}")
+                    pairwise.append({
+                        'group1': grp1,
+                        'group2': grp2,
+                        'U': u_stat,
+                        'raw_p': p_pair,
+                        'p_adj': p_adj,
+                        'effect_size': effect,
+                        'apa': apa
+                    })
+                results['pairwise'] = pairwise
 
     return results
