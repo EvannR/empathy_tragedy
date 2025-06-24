@@ -14,6 +14,7 @@ from scipy.stats import shapiro, levene, ttest_ind, mannwhitneyu, f_oneway, krus
 from itertools import combinations
 from typing import Dict
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
+from statsmodels.stats.multitest import multipletests
 
 
 # Filename patterns for parsing metadata from filenames
@@ -782,28 +783,43 @@ def rank_biserial_u(u, nx, ny):
 
 def statistical_test(df, group_col, value_col, alpha=0.05):
     """
-    Perform group comparison tests with descriptive stats, normality and variance tests,
-    and appropriate statistical tests (t-tests, ANOVA, nonparametric alternatives).
-    Returns detailed results including APA-style summaries.
+    Perform statistical comparison across two or more groups.
 
-    Returns dict with keys:
-        - 'groups': list of group labels
-        - 'descriptive': {group: {mean, std, median, n}}
-        - 'normal': bool (all groups normal)
-        - 'normality_test': {group: Shapiro-Wilk p-value or None}
-        - 'equal_variance': bool (Levene test)
-        - 'levene_test': {'statistic', 'p_value'}
-        - 'test': test name
-        - 'statistic' or 'anova_stat': test statistic
-        - 'p_value' or 'anova_p': p-value
-        - 'effect_size': float (if applicable)
-        - 'apa': APA-style summary string
-        - 'posthoc': list of dicts with post-hoc results (if applicable)
-        - 'posthoc_table': Tukey summary (if applicable)
-        - 'pairwise': list of pairwise test dicts (for nonparametric posthoc, if applicable)
+    For each group, it computes descriptive statistics, tests for normality (Shapiro-Wilk),
+    and tests for equal variances (Levene's test). Based on these assumptions:
+      - If normality and equal variances hold:
+          - Two groups: Student's or Welch's t-test (with Cohen's d)
+          - >2 groups: One-way ANOVA with Tukey HSD post-hoc (if significant)
+      - If assumptions are violated:
+          - Two groups: Mann-Whitney U test (with rank-biserial r)
+          - >2 groups: Kruskal-Wallis with Mann-Whitney pairwise comparisons,
+                      adjusted with Holm correction
+
+    Parameters:
+        df (pd.DataFrame): The dataset.
+        group_col (str): Name of the column indicating group membership.
+        value_col (str): Name of the numeric variable to compare.
+        alpha (float): Significance level (default: 0.05).
+
+    Returns:
+        dict with keys:
+            - 'groups': sorted list of group labels
+            - 'descriptive': dict {group: {mean, std, median, n}}
+            - 'normal': bool (True if all groups are normally distributed)
+            - 'normality_test': dict {group: Shapiro-Wilk p-value or None}
+            - 'equal_variance': bool (True if Levene’s test is non-significant)
+            - 'levene_test': dict with 'statistic' and 'p_value'
+            - 'test': name of the main test used
+            - 'anova_stat' or 'statistic': test statistic
+            - 'anova_p' or 'p_value': p-value of the main test
+            - 'effect_size': float, if applicable
+            - 'apa': APA-style summary string of the main test
+            - 'posthoc': list of dicts for pairwise comparisons (if applicable)
+            - 'posthoc_table': summary table (only for Tukey HSD)
+            - 'pairwise': list of dicts for Mann-Whitney pairwise (if applicable)
     """
     results = {}
-    groups = df[group_col].dropna().unique()
+    groups = sorted(df[group_col].dropna().unique())  # Sort group labels
     data = [df[df[group_col] == grp][value_col].dropna() for grp in groups]
     results['groups'] = list(groups)
 
@@ -841,7 +857,7 @@ def statistical_test(df, group_col, value_col, alpha=0.05):
         results['levene_test'] = {'statistic': None, 'p_value': None}
         results['equal_variance'] = False
 
-    # Choose and perform test
+    # Main test logic
     if len(groups) == 2:
         g1, g2 = data
         name1, name2 = groups
@@ -869,7 +885,6 @@ def statistical_test(df, group_col, value_col, alpha=0.05):
         })
 
     else:
-        # More than two groups
         if results['normal'] and results['equal_variance']:
             stat, pval = f_oneway(*data)
             results.update({
@@ -884,7 +899,6 @@ def statistical_test(df, group_col, value_col, alpha=0.05):
                     tukey = pairwise_tukeyhsd(endog=df_clean[value_col], groups=df_clean[group_col], alpha=alpha)
                     results['posthoc_table'] = tukey.summary()
                     comparisons = []
-                    # Tukey results order matches pairs in groupsunique order
                     for (grp1, grp2), diff, p_adj in zip(combinations(tukey.groupsunique, 2), tukey.meandiffs, tukey.pvalues):
                         apa = f"Tukey HSD: {grp1} vs {grp2}, mean diff = {diff:.2f}, p_adj = {p_adj:.3f}"
                         comparisons.append({
@@ -908,20 +922,38 @@ def statistical_test(df, group_col, value_col, alpha=0.05):
             })
             if pval < alpha:
                 pairwise = []
-                m = len(groups)
+                p_values = []
+                comparisons = []
+                for (i, grp1), (j, grp2) in combinations(enumerate(groups), 2):
+                    g1, g2 = data[i], data[j]
+                    print(f"\nComparing {grp1} (n={len(g1)}) with {grp2} (n={len(g2)})")
+                    print("g1:", g1.tolist())
+                    print("g2:", g2.tolist())
+                    print(f"Means: g1 = {np.mean(g1):.6f}, g2 = {np.mean(g2):.6f}")
+                    print(f"Std devs: g1 = {np.std(g1, ddof=1):.6f}, g2 = {np.std(g2, ddof=1):.6f}")
+                    print(f"Same mean (tol=1e-6)?", np.isclose(np.mean(g1), np.mean(g2), atol=1e-6))
+
                 for (i, grp1), (j, grp2) in combinations(enumerate(groups), 2):
                     g1, g2 = data[i], data[j]
                     u_stat, p_pair = mannwhitneyu(g1, g2, alternative='two-sided')
-                    p_adj = min(p_pair * (m * (m - 1) / 2), 1.0)
-                    effect = rank_biserial_u(u_stat, len(g1), len(g2))
+                    p_values.append(p_pair)
+                    comparisons.append((grp1, grp2, u_stat))
+
+                reject, p_adjusted, _, _ = multipletests(p_values, alpha=alpha, method='holm')
+
+                for ((grp1, grp2, u_stat), p_raw, p_adj, rej) in zip(comparisons, p_values, p_adjusted, reject):
+                    n1 = len(df[df[group_col] == grp1][value_col].dropna())
+                    n2 = len(df[df[group_col] == grp2][value_col].dropna())
+                    effect = rank_biserial_u(u_stat, n1, n2)
                     apa = (f"Mann-Whitney U: {grp1} vs {grp2}, U = {u_stat:.2f}, "
-                           f"p = {p_pair:.3f}, p_adj = {p_adj:.3f}, r = {effect:.2f}")
+                           f"p_raw = {p_raw:.3f}, p_adj = {p_adj:.3f}, reject = {rej}, r = {effect:.2f}")
                     pairwise.append({
                         'group1': grp1,
                         'group2': grp2,
                         'U': u_stat,
-                        'raw_p': p_pair,
+                        'raw_p': p_raw,
                         'p_adj': p_adj,
+                        'reject_null': rej,
                         'effect_size': effect,
                         'apa': apa
                     })
