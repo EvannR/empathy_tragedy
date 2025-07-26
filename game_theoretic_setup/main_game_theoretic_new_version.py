@@ -6,6 +6,8 @@ import csv
 import os
 import pandas as pd
 from tqdm import tqdm
+import torch
+
 
 
 # ----------------------------------------
@@ -74,35 +76,49 @@ POLICY_CLASSES = {
 # ----------------------------------------
 
 
-def initialize_agents_and_env():
+def initialize_agents_and_env(nb_agent=NB_AGENTS, 
+                              env_type=ENVIRONMENT_TYPE, 
+                              init_ressources=INITIAL_RESOURCES, 
+                              emotion_type=EMOTION_TYPE, 
+                              see_emotion=SEE_EMOTIONS,
+                              agent_to_test=AGENT_TO_TEST,
+                              alpha=ALPHA,
+                              beta=BETA,
+                              smoothing=SMOOTHING,
+                              sigmoid_gain=SIGMOID_GAIN,
+                              threshold=THRESHOLD,
+                              round_emotions=EMOTION_ROUNDER
+                              ):
     """
     Create environment and agents for a new simulation.
     """
-    try:
-        env = GameTheoreticEnv(
-            nb_agents=NB_AGENTS,
-            env_type=ENVIRONMENT_TYPE,
-            initial_resources=INITIAL_RESOURCES,
-            emotion_type=EMOTION_TYPE,
-            see_emotions=SEE_EMOTIONS,
-            agent_class=POLICY_CLASSES[AGENT_TO_TEST],
-            alpha=ALPHA,
-            beta=BETA,
-            smoothing=SMOOTHING,
-            sigmoid_gain=SIGMOID_GAIN,
-            threshold=THRESHOLD,
-            round_emotions=EMOTION_ROUNDER
-        )
 
-    except KeyError:
-        raise ValueError(f"Invalid AGENT_TO_TEST value: {AGENT_TO_TEST}. Choose 'DQN' or 'QLearning'.")
+    # Validate agent type
+    if agent_to_test not in POLICY_CLASSES:
+        raise ValueError(f"Invalid AGENT_TO_TEST value: {agent_to_test}. Choose from {list(POLICY_CLASSES.keys())}")
 
-    state_size = 1 if (not SEE_EMOTIONS or EMOTION_TYPE == "average") else (NB_AGENTS - 1)
+    AgentClass = POLICY_CLASSES[agent_to_test]
+    params = PARAMS_DQN if agent_to_test == "DQN" else PARAMS_QLEARNING
+
+    env = GameTheoreticEnv(
+        nb_agents=nb_agent,
+        env_type=env_type,
+        initial_resources=init_ressources,
+        emotion_type=emotion_type,
+        see_emotions=see_emotion,
+        agent_class=AgentClass,
+        alpha=alpha,
+        beta=beta,
+        smoothing=smoothing,
+        sigmoid_gain=sigmoid_gain,
+        threshold=threshold,
+        round_emotions=round_emotions
+    )
+
+    state_size = 1 if (not see_emotion or emotion_type == "average") else (nb_agent - 1)
     action_size = env.number_actions
-    params = PARAMS_DQN if AGENT_TO_TEST == "DQN" else PARAMS_QLEARNING
-    AgentClass = POLICY_CLASSES[AGENT_TO_TEST]
 
-    agents = [AgentClass(state_size, action_size, agent_id=i, **params) for i in range(NB_AGENTS)]
+    agents = [AgentClass(state_size, action_size, agent_id=i, **params) for i in range(nb_agent)]
     return env, agents
 
 # ----------------------------------------
@@ -451,20 +467,37 @@ def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
 
 
 # ----------------------------------------
+# Seed gestion
+# ----------------------------------------
+
+
+def set_global_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+
+# ----------------------------------------
 # Main entry
 # ----------------------------------------
 
+BASE_SEED = 1
 
 if __name__ == '__main__':
     folder_name = "GT_simulation_jerome_thesis_emp"
     os.makedirs(folder_name, exist_ok=True)
-
     SHOW_SIMULATION_PROGRESS = True
     simulation_iter = tqdm(range(SIMULATION_NUMBER), desc="All simulations") if SHOW_SIMULATION_PROGRESS else range(SIMULATION_NUMBER)
     for simulation_number in simulation_iter:
-        seed = simulation_number + 1
-        np.random.seed(seed)
+        seed = BASE_SEED + simulation_number
+        set_global_seed(seed)
 
+        # setting CSV filenames
         step_csv_name = filename_definer(simulation_index=simulation_number,
                                          suffix="step_data")
         summary_csv_name = filename_definer(simulation_index=simulation_number,
