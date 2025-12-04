@@ -21,6 +21,8 @@ class Agent:
         self.meal_history.append(success)
         if len(self.meal_history) > self.memory_size:
             self.meal_history.pop(0)
+        if success:
+            self.total_meals += 1
 
     def get_recent_meals(self):
         """Sends the reward in the historic"""
@@ -29,7 +31,8 @@ class Agent:
     def reset(self, observation=None):
         self.current_state = observation
         self.previous_action = None
-        self.meal_history = deque([0]*10, maxlen=10)
+        self.meal_history = deque([0] * self.memory_size, maxlen=self.memory_size)
+
 
 
 Experience = namedtuple('Experience', ['state',

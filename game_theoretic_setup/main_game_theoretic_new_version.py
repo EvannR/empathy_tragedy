@@ -29,11 +29,11 @@ Second experiment : ANOVA
 Third experiment : multiple ALPHA
 '''
 
-SIMULATION_NUMBER = 30      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 500        # number of episodes per simulation
+SIMULATION_NUMBER = 2      # number of simulation runs (also used as seed per run)
+EPISODE_NUMBER = 50        # number of episodes per simulation
 NB_AGENTS = 6
-MAX_STEPS = 1000         # number of steps per episode
-INITIAL_RESOURCES = 500   # number of ressource at the beginning of each episode
+MAX_STEPS = 20         # number of steps per episode
+INITIAL_RESOURCES = 8   # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
@@ -107,6 +107,7 @@ def initialize_agents_and_env(nb_agent=NB_AGENTS,
         emotion_type=emotion_type,
         see_emotions=see_emotion,
         agent_class=AgentClass,
+        agent_configs=[params for _ in range(nb_agent)],
         alpha=alpha,
         beta=beta,
         smoothing=smoothing,
@@ -173,7 +174,8 @@ def run_step(env, agents, simulation_index, episode, step, obs):
 
 def run_simulation_with_progressive_saving(simulation_index, step_file, summary_file, seed, episode_number=EPISODE_NUMBER, step_count=MAX_STEPS, verbose=True, step_csv_maker=True):
     np.random.seed(seed)
-    env, agents = initialize_agents_and_env()
+    env, _ = initialize_agents_and_env()
+    agents = env.agents
     summaries = []
 
     episode_iter = tqdm(range(episode_number), desc=f"Simulation {simulation_index + 1}/{SIMULATION_NUMBER}") if verbose else range(episode_number)
