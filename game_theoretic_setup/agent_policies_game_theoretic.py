@@ -61,7 +61,7 @@ class ReplayBuffer:
             reward = float(reward)
         next_state = np.array(next_state, dtype=np.float32)
         if not isinstance(done, bool):
-            done = bool(done)
+            done = bool(done.item()) if isinstance(done, np.ndarray) else bool(done)
 
         self.buffer.append(Experience(state, action, reward, next_state, done))
 
