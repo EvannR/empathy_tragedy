@@ -29,11 +29,11 @@ Second experiment : ANOVA
 Third experiment : multiple ALPHA
 '''
 
-SIMULATION_NUMBER = 2      # number of simulation runs (also used as seed per run)
-EPISODE_NUMBER = 50        # number of episodes per simulation
+NUM_RUNS_PER_CONDITION = 4  # number of simulation runs per empathy condition (non-empathic / empathic)
+EPISODE_NUMBER = 200        # number of episodes per simulation
 NB_AGENTS = 6
-MAX_STEPS = 20         # number of steps per episode
-INITIAL_RESOURCES = 8   # number of ressource at the beginning of each episode
+MAX_STEPS = 400         # number of steps per episode
+INITIAL_RESOURCES = 30   # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
 # Agent & emotion settings
@@ -172,13 +172,15 @@ def run_step(env, agents, simulation_index, episode, step, obs):
 # ----------------------------------------
 
 
-def run_simulation_with_progressive_saving(simulation_index, step_file, summary_file, seed, episode_number=EPISODE_NUMBER, step_count=MAX_STEPS, verbose=True, step_csv_maker=True):
+def run_simulation_with_progressive_saving(simulation_index, step_file, summary_file, seed, episode_number=EPISODE_NUMBER, step_count=MAX_STEPS, verbose=True, step_csv_maker=True, alpha=None):
+    if alpha is None:
+        alpha = ALPHA
     np.random.seed(seed)
-    env, _ = initialize_agents_and_env()
+    env, _ = initialize_agents_and_env(alpha=alpha)
     agents = env.agents
     summaries = []
 
-    episode_iter = tqdm(range(episode_number), desc=f"Simulation {simulation_index + 1}/{SIMULATION_NUMBER}") if verbose else range(episode_number)
+    episode_iter = tqdm(range(episode_number), desc=f"Simulation {simulation_index + 1}") if verbose else range(episode_number)
 
     for episode in episode_iter:
         obs = env.reset()
@@ -363,14 +365,17 @@ def write_summary_csv(summaries, simulation_index, seed, filename=None):
 # ----------------------------------------
 
 
-def filename_definer(simulation_index: int, suffix: str) -> str:
+def filename_definer(simulation_index: int, suffix: str, empathy_alpha: float = None) -> str:
     """
     Builds a filename matching the original format:
     results_<sim>_<episodes>_<agent>_<emotion>_<see_emotions>_<alpha>_<beta>_
              <smoothing>_<threshold>_<rounder>_<params>_<random>_<suffix>.csv
 
-             To ensure not overwriting, a version number is added if a file already exists.
+    empathy_alpha: If provided, used in filename (for multi-condition runs); else uses global ALPHA.
+    To ensure not overwriting, a version number is added if a file already exists.
     """
+    if empathy_alpha is None:
+        empathy_alpha = ALPHA
     if AGENT_TO_TEST == "DQN":
         param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min",
                        "batch_size", "hidden_size", "update_target_every"]
@@ -391,7 +396,7 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
         f"{AGENT_TO_TEST}_"
         f"{EMOTION_TYPE}_"
         f"{see_emotions_str}_"
-        f"{ALPHA}_"
+        f"{empathy_alpha}_"
         f"{BETA}_"
         f"{SMOOTHING}_"
         f"{THRESHOLD}_"
@@ -490,37 +495,55 @@ def set_global_seed(seed):
 
 BASE_SEED = 1
 
+# Empathy conditions: (alpha, label) — 4 runs per condition
+EMPATHY_CONDITIONS = [
+    (0.0, "non_empathic"),
+    (0.5, "empathic"),
+]
+
 if __name__ == '__main__':
-    folder_name = "GT_simulation_jerome_thesis_emp"
+    # Write to empathy_tragedy/GT_simulation_jerome_thesis_emp so comparison notebook finds CSVs
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    folder_name = os.path.join(_script_dir, "..", "GT_simulation_jerome_thesis_emp")
+    folder_name = os.path.normpath(folder_name)
     os.makedirs(folder_name, exist_ok=True)
     SHOW_SIMULATION_PROGRESS = True
-    simulation_iter = tqdm(range(SIMULATION_NUMBER), desc="All simulations") if SHOW_SIMULATION_PROGRESS else range(SIMULATION_NUMBER)
-    for simulation_number in simulation_iter:
-        seed = BASE_SEED + simulation_number
-        set_global_seed(seed)
 
-        # setting CSV filenames
-        step_csv_name = filename_definer(simulation_index=simulation_number,
-                                         suffix="step_data")
-        summary_csv_name = filename_definer(simulation_index=simulation_number,
-                                            suffix="episode_summary")
-        step_csv_path = os.path.join(folder_name, step_csv_name)
-        summary_csv_path = os.path.join(folder_name, summary_csv_name)
+    for condition_idx, (empathy_alpha, condition_label) in enumerate(EMPATHY_CONDITIONS):
+        print(f"\n{'='*70}")
+        print(f"CONDITION {condition_idx + 1}/{len(EMPATHY_CONDITIONS)}: {condition_label.upper()} (alpha={empathy_alpha})")
+        print(f"{'='*70}\n")
 
-        # Run simulation — records steps & summaries progressively
-        run_simulation_with_progressive_saving(
-            episode_number=EPISODE_NUMBER,
-            step_count=MAX_STEPS,
-            simulation_index=simulation_number,
-            step_file=step_csv_path,
-            summary_file=summary_csv_path,
-            seed=seed,
-            verbose=True,
-            step_csv_maker=False
-        )
+        for simulation_number in range(NUM_RUNS_PER_CONDITION):
+            seed = BASE_SEED + condition_idx * 1000 + simulation_number
+            set_global_seed(seed)
 
-        '''
-        test_combined_rewards(summary_csv_path,
-                              alpha=ALPHA,
-                              nb_agents=NB_AGENTS)
-        '''
+            step_csv_name = filename_definer(
+                simulation_index=simulation_number,
+                suffix="step_data",
+                empathy_alpha=empathy_alpha,
+            )
+            summary_csv_name = filename_definer(
+                simulation_index=simulation_number,
+                suffix="episode_summary",
+                empathy_alpha=empathy_alpha,
+            )
+            step_csv_path = os.path.join(folder_name, step_csv_name)
+            summary_csv_path = os.path.join(folder_name, summary_csv_name)
+
+            run_simulation_with_progressive_saving(
+                episode_number=EPISODE_NUMBER,
+                step_count=MAX_STEPS,
+                simulation_index=simulation_number,
+                step_file=step_csv_path,
+                summary_file=summary_csv_path,
+                seed=seed,
+                verbose=True,
+                step_csv_maker=False,
+                alpha=empathy_alpha,
+            )
+            print(f"  Saved: {summary_csv_name}")
+
+    print(f"\n{'='*70}")
+    print(f"Done. {len(EMPATHY_CONDITIONS)} conditions x {NUM_RUNS_PER_CONDITION} runs = {len(EMPATHY_CONDITIONS) * NUM_RUNS_PER_CONDITION} CSVs in {folder_name}/")
+    print(f"{'='*70}\n")
