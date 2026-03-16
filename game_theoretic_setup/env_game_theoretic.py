@@ -1,11 +1,29 @@
+"""
+game-theoretic multi-agent environment for the tragedy-of-the-commons scenario.
+
+this module defines GameTheoreticEnv, where N agents share a finite resource pool
+and independently decide whether to exploit (action=1) or abstain (action=0) at
+each time step.  the resource decreases with exploitation and regenerates at a
+configurable rate.
+
+observations can include emotional signals of other agents (average scalar or
+full vector), or be zeroed-out when empathy is disabled (see_emotions=False).
+
+reward shaping is handled by SocialRewardCalculator (from agent_policies):
+  combined_reward = (1 - alpha) * personal_satisfaction + alpha * empathic_reward
+
+supports both deterministic and stochastic exploitation modes.
+"""
+
 import numpy as np
 from agent_policies_game_theoretic import QAgent, DQNAgent, SocialRewardCalculator
 
 
 class GameTheoreticEnv:
     """
-    Multi-agent environment where each agent can exploit a shared resource or not.
-    Agents can optionally observe emotional states of others (average or full vector), or see nothing.
+    multi-agent environment where each agent can exploit a shared resource or not.
+    agents can optionally observe emotional states of others (average or full vector),
+    or see nothing.
     """
     def __init__(self, nb_agents,
                  initial_resources=100,
@@ -22,7 +40,7 @@ class GameTheoreticEnv:
                  sigmoid_gain=10.0,
                  round_emotions=None):
 
-        # Environment settings
+        # environment settings
         self.nb_agents = nb_agents
         self.initial_resources = initial_resources
         self.regen_rate = regen_rate
@@ -31,15 +49,15 @@ class GameTheoreticEnv:
         self.see_emotions = see_emotions      # If False, agents receive zero observations
         self._alpha = alpha                    # empathic weight on others
         self.beta = beta                      # weight of last vs history
-        self.number_actions = 2               # 0: Not Exploit, 1: Exploit
-        self.actions = np.arange(self.number_actions)
+        self.n_actions = 2                    # 0: abstain, 1: exploit
+        self.actions = np.arange(self.n_actions)
         self.round_emotions = round_emotions
 
-        # Agent setup
+        # agent setup
         self.agent_class = agent_class
         self.agent_configs = agent_configs or [{} for _ in range(nb_agents)]
 
-        # Social reward calculator
+        # social reward calculator
         self.reward_calculator = SocialRewardCalculator(nb_agents,
                                                         alpha=self._alpha,
                                                         beta=beta,
@@ -48,7 +66,7 @@ class GameTheoreticEnv:
                                                         sigmoid_gain=sigmoid_gain
                                                         )
 
-        # Initialize agents and reset environment state
+        # initialize agents and reset environment state
         self._init_agents()
         self.reset()
 
@@ -59,7 +77,7 @@ class GameTheoreticEnv:
         return self._alpha
 
     def _init_agents(self):
-        # Determine input dimension for agents
+        # determine input dimension for agents based on emotion visibility
         if not self.see_emotions:
             self.state_size = 1
         else:
@@ -70,12 +88,12 @@ class GameTheoreticEnv:
             else:
                 raise ValueError(f"Unknown emotion_type: {self.emotion_type}")
 
-        # Instantiate agent objects
+        # instantiate agent objects with per-agent configs
         self.agents = []
         for idx, config in enumerate(self.agent_configs):
             agent = self.agent_class(
                 state_size=self.state_size,
-                action_size=self.number_actions,
+                action_size=self.n_actions,
                 agent_id=idx,
                 **config
             )
@@ -85,7 +103,7 @@ class GameTheoreticEnv:
         self.resource = self.initial_resources
         self.time_step = 0
 
-        obs = self.get_observation()
+        obs = self.get_observations()
 
         for idx, agent in enumerate(self.agents):
             agent.reset(observation=obs[idx])
@@ -95,18 +113,18 @@ class GameTheoreticEnv:
 
         return obs
 
-    def get_observation(self):
+    def get_observations(self):
         """
-        Return list of observations for each agent: only others’ emotions.
-        Can either return an average or vector emotion depending on self.emotion_type
+        return list of observations for each agent: only others’ emotions.
+        can either return an average or vector emotion depending on self.emotion_type.
         """
 
-        # if not empathy => null scalar
+        # if no empathy, return zero-vectors
         if not self.see_emotions:
             return [np.zeros(self.state_size, dtype=float)
                     for _ in range(self.nb_agents)]
 
-        # calculation of all agents emotion
+        # calculate all agents’ emotions
         emotions = self.reward_calculator.calculate_emotions(self.agents)
 
         if self.round_emotions is not None:
@@ -126,11 +144,11 @@ class GameTheoreticEnv:
 
         return observations
 
-    def make_step(self, actions):
+    def step(self, actions):
         """
-        Execute one timestep: agents choose actions, environment updates.
+        execute one timestep: agents choose actions, environment updates.
         actions: list of 0/1 for each agent.
-        Returns: next_observations, rewards, done, info
+        returns: next_observations, rewards, done, info.
         """
         consumed = 0
         immediate_rewards = []
@@ -140,9 +158,11 @@ class GameTheoreticEnv:
             success = False
             if act == 1 and self.resource > 0:
                 if self.env_type == "stochastic":
+                    # success probability decreases as resources are depleted
                     prob = self.resource / self.initial_resources
                     success = np.random.rand() < prob
                 else:
+                    # deterministic: exploitation always succeeds if resources remain
                     success = True
                 if success:
                     reward = 1.0
@@ -156,15 +176,16 @@ class GameTheoreticEnv:
 
         emotions, personal_reward, empathic_reward, total_reward = self.reward_calculator.calculate_rewards(self.agents)
 
-        # Update of the environment
+        # update resource pool and step counter
         self.resource = max(0.0, (self.resource - consumed) * self.regen_rate)
         self.time_step += 1
-        next_obs = self.get_observation()
+        next_obs = self.get_observations()
+        # episode ends when the resource pool is fully depleted
         done = self.resource <= 0
 
         info = {
             'emotions': emotions,
-            'exploitation_reward': personal_reward,
+            'personal_reward': personal_reward,
             'empathic_reward': empathic_reward,
             'combined_reward': total_reward
         }
@@ -172,7 +193,7 @@ class GameTheoreticEnv:
         return next_obs, total_reward, done, info
 
     def get_agent_meal_stats(self, agent_idx):
-        """Return recent and total meals for one agent."""
+        """return recent and total meals for one agent."""
         a = self.agents[agent_idx]
         return {
             'recent_meals': a.get_recent_meals(),
@@ -181,5 +202,5 @@ class GameTheoreticEnv:
         }
 
     def get_all_agents_meal_stats(self):
-        """Return meal stats for all agents."""
+        """return meal stats for all agents."""
         return [self.get_agent_meal_stats(i) for i in range(self.nb_agents)]
