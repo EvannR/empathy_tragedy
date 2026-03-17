@@ -1,15 +1,19 @@
 """
 agent policies for the game-theoretic empathy / tragedy-of-the-commons setup.
+2x2 matrix version: agents carry both a see_emotions flag (observation dimension)
+and an alpha parameter (reward dimension) as per-agent attributes.
 
 this module defines:
   - Agent           : base agent class that tracks meal history and total meals.
+                      now stores see_emotions and alpha as per-agent attributes.
   - ReplayBuffer    : experience replay buffer used by DQN agents.
   - QAgent          : tabular Q-learning agent (epsilon-greedy, Q-table).
   - DQNNetwork      : two-hidden-layer feedforward network used as the Q-function approximator.
   - DQNAgent        : deep Q-network agent with experience replay and a target network.
   - SocialRewardCalculator : computes emotion signals (linear or sigmoid smoothing),
         personal satisfaction, empathic reward (mean emotion of others), and the
-        combined reward  r = (1 - alpha) * personal + alpha * empathic.
+        combined reward  r = (1 - alpha_i) * personal_i + alpha_i * empathic_i.
+        alpha can now be a per-agent list.
 
 all agent classes inherit from Agent and share the same step() / select_action()
 interface so they can be used interchangeably in GameTheoreticEnv.
@@ -27,11 +31,15 @@ import random
 class Agent:
     def __init__(self,
                  agent_id,
-                 memory_size=10):  # may be 7
+                 memory_size=10,
+                 see_emotions=True,   # observation dimension: does this agent observe others' emotions?
+                 alpha=0.5):          # reward dimension: how much does this agent weight others' emotions?
         self.agent_id = agent_id
         self.memory_size = memory_size
         self.meal_history = deque([0] * memory_size, maxlen=memory_size)
         self.total_meals = 0
+        self.see_emotions = see_emotions
+        self.alpha = alpha
 
     def record_meal(self, success: bool, reward: float):
         """record whether the agent successfully ate in this timestep."""
@@ -101,8 +109,10 @@ class ReplayBuffer:
 class QAgent(Agent):
     def __init__(self, state_size, action_size, agent_id=0, learning_rate=0.1,
                  gamma=0.99, epsilon=1.0, epsilon_decay=0.995,
-                 epsilon_min=0.01, memory_size=10):
-        super().__init__(agent_id, memory_size=memory_size)
+                 epsilon_min=0.01, memory_size=10,
+                 see_emotions=True, alpha=0.5):
+        super().__init__(agent_id, memory_size=memory_size,
+                         see_emotions=see_emotions, alpha=alpha)
 
         self.state_size = state_size
         self.action_size = action_size
@@ -194,8 +204,9 @@ class DQNAgent(Agent):
     def __init__(self, state_size, action_size, agent_id=0, hidden_size=64,
                  learning_rate=0.001, gamma=0.99, epsilon=1.0,
                  epsilon_decay=0.995, epsilon_min=0.01, batch_size=64,
-                 update_target_every=10):
-        super().__init__(agent_id)
+                 update_target_every=10,
+                 see_emotions=True, alpha=0.5):
+        super().__init__(agent_id, see_emotions=see_emotions, alpha=alpha)
         self.agent_id = agent_id
         self.state_size = state_size
         self.action_size = action_size
@@ -316,7 +327,9 @@ class SocialRewardCalculator:
 
     combines personal satisfaction (beta-weighted mix of last meal and history)
     with an empathic signal (mean emotion of all other agents) to produce a
-    combined reward: r = (1 - alpha) * personal + alpha * empathic.
+    per-agent combined reward: r_i = (1 - alpha_i) * personal_i + alpha_i * empathic_i.
+
+    alpha can be a single float (same for all agents) or a list of per-agent values.
     """
     def __init__(self, nb_agents, alpha=0.5, beta=0.5, threshold=0.7,
                  smoothing='linear', sigmoid_gain=10.0):
@@ -325,8 +338,10 @@ class SocialRewardCalculator:
         -----------
         nb_agents : int
             number of agents in the environment
-        alpha : float
-            weight on others' satisfaction vs. personal satisfaction (0-1)
+        alpha : float or list of float
+            weight on others' satisfaction vs. personal satisfaction (0-1).
+            if a single float, it is broadcast to all agents.
+            if a list, it must have length nb_agents.
         beta : float
             balance last vs. history consumption for personal satisfaction (0-1)
         threshold : float
@@ -337,7 +352,12 @@ class SocialRewardCalculator:
             steepness for sigmoid mapping
         """
         self.nb_agents = nb_agents
-        self.alpha = alpha
+        # normalise alpha to always be a per-agent list internally
+        if isinstance(alpha, (list, np.ndarray)):
+            assert len(alpha) == nb_agents, "alpha list length must match nb_agents"
+            self.alpha = [float(a) for a in alpha]
+        else:
+            self.alpha = [float(alpha)] * nb_agents
         self.beta = beta
         self.threshold = threshold
         self.smoothing = smoothing
@@ -389,7 +409,8 @@ class SocialRewardCalculator:
         - emotions   : list of emotion signals ([-1,1])
         - personal   : list of personal satisfaction values ([0,1])
         - empathic   : list of empathic signals ([-1,1])
-        - total      : list of total rewards (personal + empathic)
+        - total      : list of total rewards, using per-agent alpha:
+                       total_i = (1 - alpha_i) * personal_i + alpha_i * empathic_i
         """
         personal = [self.calculate_personal_satisfaction(a) for a in agents]
 
@@ -398,12 +419,13 @@ class SocialRewardCalculator:
         # empathic reward: mean emotion of all other agents
         empathic_reward = []
         for idx, emo in enumerate(emotions):
-            # average emotion of all other agents
             others_emo = np.mean([e for j, e in enumerate(emotions) if j != idx])
-            # append mean of others' emotions as empathic signal
             empathic_reward.append(others_emo)
 
-        # total reward: weighted combination of personal and empathic
-        total = [(1 - self.alpha) * pers + self.alpha * emp for pers, emp in zip(personal, empathic_reward)]
+        # total reward: per-agent weighted combination
+        total = [
+            (1 - self.alpha[i]) * personal[i] + self.alpha[i] * empathic_reward[i]
+            for i in range(self.nb_agents)
+        ]
 
         return emotions, personal, empathic_reward, total

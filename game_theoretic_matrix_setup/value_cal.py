@@ -11,4 +11,4 @@ total = alpha * empathic + (1-alpha) * personal
 
 print(total)
 
-# was is das ? 
+# was is das ?
