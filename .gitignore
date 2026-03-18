@@ -9,3 +9,4 @@ empathy_tragedy/**
 
 config
 config.pub
+.venv/*
