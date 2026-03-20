@@ -521,8 +521,8 @@ BASE_SEED = 2
 
 # empathy conditions: (alpha, label)
 EMPATHY_CONDITIONS = [
-    (0.0, "non_empathic"),
-    (0.15, "slightly_empathic"),
+    #(0.0, "non_empathic"),
+    #(0.15, "slightly_empathic"),
     #(0.2, "somewhat_empathic"),
     (0.25, "moderately_empathic"),
     #(0.3, "fairly_empathic"),
