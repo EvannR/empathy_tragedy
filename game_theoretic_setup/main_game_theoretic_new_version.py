@@ -26,7 +26,6 @@ import random
 import csv
 import os
 import pandas as pd
-from tqdm import tqdm
 import torch
 
 
@@ -51,7 +50,7 @@ third experiment: multiple ALPHA
 forth experiment: 2 by 2 matrix (observation, consideration of others)
 '''
 
-NUM_RUNS_PER_CONDITION = 3  # number of simulation runs per empathy condition (non-empathic / empathic)
+NUM_RUNS_PER_CONDITION = 2  # number of simulation runs per empathy condition (non-empathic / empathic)
 EPISODE_NUMBER = 500        # number of episodes per simulation
 NB_AGENTS = 6
 MAX_STEPS = 1000        # number of steps per episode
@@ -202,16 +201,19 @@ def run_simulation(simulation_index, step_file, summary_file, seed, episode_numb
     agents = env.agents
     summaries = []
 
-    episode_iter = tqdm(range(episode_number), desc=f"Simulation {simulation_index + 1}") if verbose else range(episode_number)
+    milestone = max(1, episode_number // 10)
 
-    for episode in episode_iter:
+    for episode in range(episode_number):
+        if verbose and episode % milestone == 0:
+            print(f"  Simulation {simulation_index + 1} — {episode}/{episode_number} ({100 * episode // episode_number}%)")
+
         obs = env.reset()
         total_personal = np.zeros(NB_AGENTS)
         total_empathic = np.zeros(NB_AGENTS)
         total_combined = np.zeros(NB_AGENTS)
         episode_step_records = []
 
-        step_iter = tqdm(range(step_count), desc=f"Episode {episode}", leave=False) if verbose else range(step_count)
+        step_iter = range(step_count)
 
         for step in step_iter:
             record, pers_r, emp_r, comb_r, obs, done = run_step(env, agents, simulation_index, episode, step, obs)
@@ -515,18 +517,29 @@ def set_global_seed(seed):
 # main entry point
 # ----------------------------------------
 
-BASE_SEED = 1
+BASE_SEED = 2
 
-# empathy conditions: (alpha, label) — 4 runs per condition
+# empathy conditions: (alpha, label)
 EMPATHY_CONDITIONS = [
     (0.0, "non_empathic"),
+    (0.15, "slightly_empathic"),
+    #(0.2, "somewhat_empathic"),
+    (0.25, "moderately_empathic"),
+    #(0.3, "fairly_empathic"),
+    #(0.4, "quite_empathic"),
     (0.5, "empathic"),
+    #(0.6, "very_empathic"),
+    #(0.7, "extremely_empathic"),
+    (0.75, "highly_empathic"),
+    (0.85, "very_highly_empathic"),
+    #(0.9, "very_highly_empathic"),
+    (0.99, "near_fully_empathic")
 ]
 
 if __name__ == '__main__':
     # write results to empathy_tragedy/GT_simulation_jerome_thesis_emp so comparison notebook finds CSVs
     _script_dir = os.path.dirname(os.path.abspath(__file__))
-    folder_name = os.path.join(_script_dir, "..", "GT_simulation_1_ControlvsEmph")
+    folder_name = os.path.join(_script_dir, "..", "GT_simulation_2_MultipleAlpha")
     folder_name = os.path.normpath(folder_name)
     os.makedirs(folder_name, exist_ok=True)
     SHOW_SIMULATION_PROGRESS = True

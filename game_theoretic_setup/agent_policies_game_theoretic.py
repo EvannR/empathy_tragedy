@@ -23,6 +23,8 @@ import torch.nn.functional as F
 from collections import deque, namedtuple
 import random
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class Agent:
     def __init__(self,
@@ -207,8 +209,8 @@ class DQNAgent(Agent):
         self.update_target_every = update_target_every
         self.steps = 0
 
-        self.policy_network = DQNNetwork(state_size, action_size, hidden_size)
-        self.target_network = DQNNetwork(state_size, action_size, hidden_size)
+        self.policy_network = DQNNetwork(state_size, action_size, hidden_size).to(device)
+        self.target_network = DQNNetwork(state_size, action_size, hidden_size).to(device)
         self.target_network.load_state_dict(self.policy_network.state_dict())
 
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=learning_rate)
@@ -225,7 +227,7 @@ class DQNAgent(Agent):
         if not isinstance(state, np.ndarray):
             state = np.array(state, dtype=np.float32)
 
-        state_tensor = torch.from_numpy(state).float().unsqueeze(0)
+        state_tensor = torch.from_numpy(state).float().unsqueeze(0).to(device)
         self.policy_network.eval()
         with torch.no_grad():
             action_values = self.policy_network(state_tensor)
@@ -236,6 +238,11 @@ class DQNAgent(Agent):
     def learn(self, experiences):
         """learn from a batch of experiences using DQN loss."""
         states, actions, rewards, next_states, dones = experiences
+        states = states.to(device)
+        actions = actions.to(device)
+        rewards = rewards.to(device)
+        next_states = next_states.to(device)
+        dones = dones.to(device)
 
         try:
             # Q(s,a) from the policy network for the actions actually taken
