@@ -179,19 +179,19 @@ class DQN(nn.Module):
     def __init__(self, state_size, action_size, hidden_size=64):
         super(DQN, self).__init__()
 
-        # Enhanced network architecture for maze environment
+  
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, hidden_size // 2)
         self.fc4 = nn.Linear(hidden_size // 2, action_size)
         
-        # Initialize weights with Xavier/Glorot initialization
+        
         nn.init.xavier_uniform_(self.fc1.weight)
         nn.init.xavier_uniform_(self.fc2.weight)
         nn.init.xavier_uniform_(self.fc3.weight)
         nn.init.xavier_uniform_(self.fc4.weight)
 
-    def forward(self, state):
+    def forward(self, state) -> torch.Tensor:
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
