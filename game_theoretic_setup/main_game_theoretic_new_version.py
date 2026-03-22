@@ -27,6 +27,7 @@ import csv
 import os
 import pandas as pd
 import torch
+from tqdm import tqdm
 
 
 
@@ -201,11 +202,11 @@ def run_simulation(simulation_index, step_file, summary_file, seed, episode_numb
     agents = env.agents
     summaries = []
 
-    milestone = max(1, episode_number // 10)
+    episode_iter = range(episode_number)
+    if verbose:
+        episode_iter = tqdm(episode_iter, desc=f"  Sim {simulation_index + 1}", unit="ep")
 
-    for episode in range(episode_number):
-        if verbose and episode % milestone == 0:
-            print(f"  Simulation {simulation_index + 1} — {episode}/{episode_number} ({100 * episode // episode_number}%)")
+    for episode in episode_iter:
 
         obs = env.reset()
         total_personal = np.zeros(NB_AGENTS)
