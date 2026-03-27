@@ -1,3 +1,24 @@
+"""
+main entry point for running multi-condition game-theoretic simulations.
+
+this script orchestrates complete experiments for the empathic tragedy-of-the-
+commons setup.  it runs multiple simulation runs per empathy condition
+(e.g. empathic vs non-empathic), where each run consists of many episodes of
+multi-agent resource exploitation.
+
+key features:
+  - configurable RL agent type (DQN or tabular Q-learning).
+  - configurable empathy parameters (alpha, beta, smoothing, threshold).
+  - progressive saving: step-level and episode-summary CSV files are written
+    incrementally so data is preserved even if a run is interrupted.
+  - deterministic seeding for reproducibility (numpy, random, torch).
+
+usage:
+    python main_game_theoretic_new_version.py
+
+output CSV files are saved under  empathy_tragedy/GT_simulation_jerome_thesis_emp/.
+"""
+
 from env_game_theoretic import GameTheoreticEnv
 from agent_policies_game_theoretic import QAgent, DQNAgent
 import numpy as np
@@ -5,18 +26,18 @@ import random
 import csv
 import os
 import pandas as pd
-from tqdm import tqdm
 import torch
+from tqdm import tqdm
 
 
 
 # ----------------------------------------
-# Constants for the simulation
+# constants for the simulation
 # ----------------------------------------
 '''
-First experiment : 2 conditions
-    empathic : SEE_EMOTIONS = TRUE AND ALPHA = 0.5
-    standard : SEE_EMOTIONS = FALSE AND ALPHA = 0
+first experiment: 2 conditions
+    empathic: SEE_EMOTIONS = TRUE and ALPHA = 0.5
+    standard: SEE_EMOTIONS = FALSE and ALPHA = 0
 
     Episodes = 5000
     NB_AGENTS = 6
@@ -25,29 +46,38 @@ First experiment : 2 conditions
 '''
 
 '''
-Second experiment : ANOVA
-Third experiment : multiple ALPHA
+second experiment: ANOVA -> need and explanation. 
+third experiment: multiple ALPHA
+forth experiment: 2 by 2 matrix (observation, consideration of others)
 '''
 
+<<<<<<< HEAD
 SIMULATION_NUMBER = 3      # number of simulation runs (also used as seed per run)
 EPISODE_NUMBER = 50        # number of episodes per simulation
 NB_AGENTS = 6
 MAX_STEPS = 100         # number of steps per episode
 INITIAL_RESOURCES = 8   # number of ressource at the beginning of each episode
+=======
+NUM_RUNS_PER_CONDITION = 2  # number of simulation runs per empathy condition (non-empathic / empathic)
+EPISODE_NUMBER = 500        # number of episodes per simulation
+NB_AGENTS = 6
+MAX_STEPS = 1000        # number of steps per episode
+INITIAL_RESOURCES = 500   # number of ressource at the beginning of each episode
+>>>>>>> d7e25db5b90c85d454b6c8ec591b2e376142a8da
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
-# Agent & emotion settings
+# agent and emotion settings
 AGENT_TO_TEST = "DQN"      # 'DQN' or 'QLearning'
 EMOTION_TYPE = "average"   # 'average' or 'vector'
-SEE_EMOTIONS = True        # whether agents observe others' emotions : First experiment - True or False
-ALPHA = 0.5                # empathy degree (0.0 - 1.0) First experiment - 0.5 or 0 (non empathic)
+SEE_EMOTIONS = True        # whether agents observe others' emotions : first experiment - True or False
+ALPHA = 0.5                # empathy degree (0.0 - 1.0) first experiment - 0.5 or 0 (non empathic)
 BETA = 0.5                 # valuation of last meal
 SMOOTHING = 'linear'       # function transforming the meal history into an emotion : "sigmoid" OR "linear"
 SIGMOID_GAIN = 5.0
-THRESHOLD = 0.5            # Ratio of reward in meal history for the emotion to be neutral
-EMOTION_ROUNDER = 2        # emotion's number of decimals
+THRESHOLD = 0.5            # ratio of reward in meal history for the emotion to be neutral
+EMOTION_DECIMALS = 2       # emotion's number of decimals
 
-# RL agents Hyperparameters
+# RL agent hyperparameters
 PARAMS_QLEARNING = {
     "learning_rate": 0.1,
     "gamma": 0.99,
@@ -72,28 +102,28 @@ POLICY_CLASSES = {
 }
 
 # ----------------------------------------
-# Initialization of agents and environment for a new simulation
+# initialization of agents and environment for a new simulation
 # ----------------------------------------
 
 
-def initialize_agents_and_env(nb_agent=NB_AGENTS, 
-                              env_type=ENVIRONMENT_TYPE, 
-                              init_ressources=INITIAL_RESOURCES, 
-                              emotion_type=EMOTION_TYPE, 
-                              see_emotion=SEE_EMOTIONS,
-                              agent_to_test=AGENT_TO_TEST,
-                              alpha=ALPHA,
-                              beta=BETA,
-                              smoothing=SMOOTHING,
-                              sigmoid_gain=SIGMOID_GAIN,
-                              threshold=THRESHOLD,
-                              round_emotions=EMOTION_ROUNDER
-                              ):
+def init_env(n_agents=NB_AGENTS,
+             env_type=ENVIRONMENT_TYPE,
+             initial_resources=INITIAL_RESOURCES,
+             emotion_type=EMOTION_TYPE,
+             see_emotions=SEE_EMOTIONS,
+             agent_to_test=AGENT_TO_TEST,
+             alpha=ALPHA,
+             beta=BETA,
+             smoothing=SMOOTHING,
+             sigmoid_gain=SIGMOID_GAIN,
+             threshold=THRESHOLD,
+             round_emotions=EMOTION_DECIMALS
+             ):
     """
-    Create environment and agents for a new simulation.
+    create environment and agents for a new simulation.
     """
 
-    # Validate agent type
+    # validate agent type
     if agent_to_test not in POLICY_CLASSES:
         raise ValueError(f"Invalid AGENT_TO_TEST value: {agent_to_test}. Choose from {list(POLICY_CLASSES.keys())}")
 
@@ -101,13 +131,13 @@ def initialize_agents_and_env(nb_agent=NB_AGENTS,
     params = PARAMS_DQN if agent_to_test == "DQN" else PARAMS_QLEARNING
 
     env = GameTheoreticEnv(
-        nb_agents=nb_agent,
+        nb_agents=n_agents,
         env_type=env_type,
-        initial_resources=init_ressources,
+        initial_resources=initial_resources,
         emotion_type=emotion_type,
-        see_emotions=see_emotion,
+        see_emotions=see_emotions,
         agent_class=AgentClass,
-        agent_configs=[params for _ in range(nb_agent)],
+        agent_configs=[params for _ in range(n_agents)],
         alpha=alpha,
         beta=beta,
         smoothing=smoothing,
@@ -116,36 +146,36 @@ def initialize_agents_and_env(nb_agent=NB_AGENTS,
         round_emotions=round_emotions
     )
 
-    state_size = 1 if (not see_emotion or emotion_type == "average") else (nb_agent - 1)
-    action_size = env.number_actions
+    state_size = 1 if (not see_emotions or emotion_type == "average") else (n_agents - 1)
+    action_size = env.n_actions
 
-    agents = [AgentClass(state_size, action_size, agent_id=i, **params) for i in range(nb_agent)]
+    agents = [AgentClass(state_size, action_size, agent_id=i, **params) for i in range(n_agents)]
     return env, agents
 
 # ----------------------------------------
-# Step processing
+# step processing
 # ----------------------------------------
 
 
 def run_step(env, agents, simulation_index, episode, step, obs):
     """
-    Execute one step:
+    execute one step:
         select actions,
         apply to env,
         collect info,
-        update agents
-    Return :
+        update agents.
+    return:
         the step record,
         rewards arrays,
-        next observation
+        next observation.
     """
 
     actions = [agent.select_action(obs[i]) for i, agent in enumerate(agents)]
 
-    next_obs, rewards, done, info = env.make_step(actions)
+    next_obs, rewards, done, info = env.step(actions)
 
-    # Extract reward components
-    personal_arr = np.array(info['exploitation_reward'])
+    # extract reward components
+    personal_arr = np.array(info['personal_reward'])
     empathic_arr = np.array(info['empathic_reward'])
     combined_arr = np.array(info['combined_reward'])
 
@@ -161,48 +191,53 @@ def run_step(env, agents, simulation_index, episode, step, obs):
         'empathic': empathic_arr.tolist(),
         'combined_reward': combined_arr.tolist()
     }
-    # Learning updates
+    # learning updates
     for i, agent in enumerate(agents):
         agent.step(next_state=next_obs[i], reward=rewards[i], done=done)
 
     return record, personal_arr, empathic_arr, combined_arr, next_obs, done
 
 # ----------------------------------------
-# Simulation logic for one simulation with multiple episodes
+# simulation logic for one simulation with multiple episodes
 # ----------------------------------------
 
 
-def run_simulation_with_progressive_saving(simulation_index, step_file, summary_file, seed, episode_number=EPISODE_NUMBER, step_count=MAX_STEPS, verbose=True, step_csv_maker=True):
+def run_simulation(simulation_index, step_file, summary_file, seed, episode_number=EPISODE_NUMBER, step_count=MAX_STEPS, verbose=True, save_steps=True, alpha=None):
+    if alpha is None:
+        alpha = ALPHA
     np.random.seed(seed)
-    env, _ = initialize_agents_and_env()
+    env, _ = init_env(alpha=alpha)
     agents = env.agents
     summaries = []
 
-    episode_iter = tqdm(range(episode_number), desc=f"Simulation {simulation_index + 1}/{SIMULATION_NUMBER}") if verbose else range(episode_number)
+    episode_iter = range(episode_number)
+    if verbose:
+        episode_iter = tqdm(episode_iter, desc=f"  Sim {simulation_index + 1}", unit="ep")
 
     for episode in episode_iter:
+
         obs = env.reset()
         total_personal = np.zeros(NB_AGENTS)
         total_empathic = np.zeros(NB_AGENTS)
         total_combined = np.zeros(NB_AGENTS)
         episode_step_records = []
 
-        step_iter = tqdm(range(step_count), desc=f"Episode {episode}", leave=False) if verbose else range(step_count)
+        step_iter = range(step_count)
 
         for step in step_iter:
-            record, prs, ers, crs, obs, done = run_step(env, agents, simulation_index, episode, step, obs)
+            record, pers_r, emp_r, comb_r, obs, done = run_step(env, agents, simulation_index, episode, step, obs)
 
-            if step_csv_maker:
+            if save_steps:
                 episode_step_records.append(record)
 
-            total_personal += prs
-            total_empathic += ers
-            total_combined += crs
+            total_personal += pers_r
+            total_empathic += emp_r
+            total_combined += comb_r
 
             if done:
                 break
 
-        if step_csv_maker:
+        if save_steps:
             write_step_csv(episode_step_records, simulation_index, seed=seed, filename=step_file)
 
         summary = {
@@ -221,14 +256,14 @@ def run_simulation_with_progressive_saving(simulation_index, step_file, summary_
 
 
 # ----------------------------------------
-# Functions used to write CSV
+# functions used to write CSV
 # ----------------------------------------
 
 
 def append_step_record(record, simulation_index, filename):
     """
-    Append a single step record to the simulation's step CSV file.
-    Writes header only once (if file doesn't exist).
+    append a single step record to the simulation's step CSV file.
+    writes header only once (if file doesn't exist).
     """
     file_exists = os.path.exists(filename)
 
@@ -265,26 +300,26 @@ def append_step_record(record, simulation_index, filename):
 
 def write_step_csv(step_records, simulation_index, seed, filename):
     """
-    Write a list of step-level records to a CSV file for a given simulation run.
+    write a list of step-level records to a CSV file for a given simulation run.
 
-    Each record contains detailed information for a single environment step, including:
-    - Episode and step number
-    - Observations and actions of each agent
-    - Rewards (personal, empathic, combined) for each agent
-    - Remaining shared resources
+    each record contains detailed information for a single environment step, including:
+    - episode and step number
+    - observations and actions of each agent
+    - rewards (personal, empathic, combined) for each agent
+    - remaining shared resources
 
-    The function appends to the CSV file if it already exists, writing the header only once. 
-    This allows progressive saving across episodes and simulations.
+    the function appends to the CSV file if it already exists, writing the header only once.
+    this allows progressive saving across episodes and simulations.
 
-    Parameters:
-        step_records (list of dict): List of dictionaries, each representing a single step's data.
-        simulation_index (int): The index identifying the current simulation (used in file naming).
-        seed (int): Random seed used for the simulation (stored in the file for reproducibility).
-        filename (str): Full path to the CSV file where data should be written.
+    parameters:
+        step_records (list of dict): list of dictionaries, each representing a single step's data.
+        simulation_index (int): the index identifying the current simulation (used in file naming).
+        seed (int): random seed used for the simulation (stored in the file for reproducibility).
+        filename (str): full path to the CSV file where data should be written.
 
-    Outputs:
-        Appends step-level data to the specified CSV file.
-        If the file does not exist, it creates a new file with the appropriate header.
+    outputs:
+        appends step-level data to the specified CSV file.
+        if the file does not exist, it creates a new file with the appropriate header.
     """
     file_exists = os.path.exists(filename)
     header = (
@@ -322,10 +357,10 @@ def write_step_csv(step_records, simulation_index, seed, filename):
 
 def write_summary_csv(summaries, simulation_index, seed, filename=None):
     """
-    Append per-episode summary data to CSV. Write header only if file does not exist.
+    append per-episode summary data to CSV. write header only if file does not exist.
     """
     if filename is None:
-        filename = filename_definer(simulation_index, suffix="episode_summary")
+        filename = build_filename(simulation_index, suffix="episode_summary")
 
     file_exists = os.path.exists(filename)
 
@@ -359,18 +394,21 @@ def write_summary_csv(summaries, simulation_index, seed, filename=None):
 
 
 # ----------------------------------------
-# Filename builder
+# filename builder
 # ----------------------------------------
 
 
-def filename_definer(simulation_index: int, suffix: str) -> str:
+def build_filename(simulation_index: int, suffix: str, empathy_alpha: float = None) -> str:
     """
-    Builds a filename matching the original format:
+    build a filename matching the original format:
     results_<sim>_<episodes>_<agent>_<emotion>_<see_emotions>_<alpha>_<beta>_
              <smoothing>_<threshold>_<rounder>_<params>_<random>_<suffix>.csv
 
-             To ensure not overwriting, a version number is added if a file already exists.
+    empathy_alpha: if provided, used in filename (for multi-condition runs); else uses global ALPHA.
+    to ensure not overwriting, a version number is added if a file already exists.
     """
+    if empathy_alpha is None:
+        empathy_alpha = ALPHA
     if AGENT_TO_TEST == "DQN":
         param_order = ["learning_rate", "gamma", "epsilon", "epsilon_decay", "epsilon_min",
                        "batch_size", "hidden_size", "update_target_every"]
@@ -391,17 +429,17 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
         f"{AGENT_TO_TEST}_"
         f"{EMOTION_TYPE}_"
         f"{see_emotions_str}_"
-        f"{ALPHA}_"
+        f"{empathy_alpha}_"
         f"{BETA}_"
         f"{SMOOTHING}_"
         f"{THRESHOLD}_"
-        f"{EMOTION_ROUNDER}_"
+        f"{EMOTION_DECIMALS}_"
         f"{param_values}_"
         f"{random_suffix}_"
         f"{suffix}.csv"
     )
 
-    # To ensure no file deletion
+    # ensure no file overwrite by appending version number
     base_filename = filename.replace('.csv', '')
     version = 1
     while os.path.exists(filename):
@@ -411,30 +449,30 @@ def filename_definer(simulation_index: int, suffix: str) -> str:
     return filename
 
 # ----------------------------------------
-# debug data
+# debug / data validation
 # ----------------------------------------
 
 
-def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
+def validate_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
     """
-    Validate that the combined rewards in a summary CSV file match the expected formula:
+    validate that the combined rewards in a summary CSV file match the expected formula:
         combined_reward = (1 - alpha) * personal_reward + alpha * empathic_reward
 
-    This function reads a summary CSV file and checks each agent's combined reward against the
+    this function reads a summary CSV file and checks each agent's combined reward against the
     weighted sum of their personal and empathic rewards using the provided alpha (empathy degree).
-    It raises an AssertionError if any discrepancies exceed the specified tolerance.
+    it raises an AssertionError if any discrepancies exceed the specified tolerance.
 
-    Parameters:
-        csv_path (str): Path to the summary CSV file generated by the simulation.
-        alpha (float): Weight for empathic rewards in the combination formula (range 0.0 - 1.0).
-        tolerance (float): Allowed numerical error when comparing expected and recorded combined rewards.
-        nb_agents (int or None): Number of agents in the simulation. If None, inferred from CSV column headers.
+    parameters:
+        csv_path (str): path to the summary CSV file generated by the simulation.
+        alpha (float): weight for empathic rewards in the combination formula (range 0.0 - 1.0).
+        tolerance (float): allowed numerical error when comparing expected and recorded combined rewards.
+        nb_agents (int or None): number of agents in the simulation. if None, inferred from CSV column headers.
 
-    Raises:
-        AssertionError: If any combined reward does not match the expected value within the specified tolerance.
-    
-    Outputs:
-        Prints a success message if all combined rewards match expectations. Otherwise, prints detailed
+    raises:
+        AssertionError: if any combined reward does not match the expected value within the specified tolerance.
+
+    outputs:
+        prints a success message if all combined rewards match expectations. otherwise, prints detailed
         mismatch information before raising an error.
     """
     
@@ -469,7 +507,7 @@ def test_combined_rewards(csv_path, alpha=0.5, tolerance=1e-6, nb_agents=None):
 
 
 # ----------------------------------------
-# Seed gestion
+# seed management
 # ----------------------------------------
 
 
@@ -485,42 +523,71 @@ def set_global_seed(seed):
 
 
 # ----------------------------------------
-# Main entry
+# main entry point
 # ----------------------------------------
 
-BASE_SEED = 1
+BASE_SEED = 2
+
+# empathy conditions: (alpha, label)
+EMPATHY_CONDITIONS = [
+    #(0.0, "non_empathic"),
+    #(0.15, "slightly_empathic"),
+    #(0.2, "somewhat_empathic"),
+    (0.25, "moderately_empathic"),
+    #(0.3, "fairly_empathic"),
+    #(0.4, "quite_empathic"),
+    (0.5, "empathic"),
+    #(0.6, "very_empathic"),
+    #(0.7, "extremely_empathic"),
+    (0.75, "highly_empathic"),
+    (0.85, "very_highly_empathic"),
+    #(0.9, "very_highly_empathic"),
+    (0.99, "near_fully_empathic")
+]
 
 if __name__ == '__main__':
-    folder_name = "GT_simulation_jerome_thesis_emp"
+    # write results to empathy_tragedy/GT_simulation_jerome_thesis_emp so comparison notebook finds CSVs
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    folder_name = os.path.join(_script_dir, "..", "GT_simulation_2_MultipleAlpha")
+    folder_name = os.path.normpath(folder_name)
     os.makedirs(folder_name, exist_ok=True)
     SHOW_SIMULATION_PROGRESS = True
-    simulation_iter = tqdm(range(SIMULATION_NUMBER), desc="All simulations") if SHOW_SIMULATION_PROGRESS else range(SIMULATION_NUMBER)
-    for simulation_number in simulation_iter:
-        seed = BASE_SEED + simulation_number
-        set_global_seed(seed)
 
-        # setting CSV filenames
-        step_csv_name = filename_definer(simulation_index=simulation_number,
-                                         suffix="step_data")
-        summary_csv_name = filename_definer(simulation_index=simulation_number,
-                                            suffix="episode_summary")
-        step_csv_path = os.path.join(folder_name, step_csv_name)
-        summary_csv_path = os.path.join(folder_name, summary_csv_name)
+    for condition_idx, (empathy_alpha, condition_label) in enumerate(EMPATHY_CONDITIONS):
+        print(f"\n{'='*70}")
+        print(f"CONDITION {condition_idx + 1}/{len(EMPATHY_CONDITIONS)}: {condition_label.upper()} (alpha={empathy_alpha})")
+        print(f"{'='*70}\n")
 
-        # Run simulation — records steps & summaries progressively
-        run_simulation_with_progressive_saving(
-            episode_number=EPISODE_NUMBER,
-            step_count=MAX_STEPS,
-            simulation_index=simulation_number,
-            step_file=step_csv_path,
-            summary_file=summary_csv_path,
-            seed=seed,
-            verbose=True,
-            step_csv_maker=False
-        )
+        for simulation_number in range(NUM_RUNS_PER_CONDITION):
+            seed = BASE_SEED + condition_idx * 1000 + simulation_number
+            set_global_seed(seed)
 
-        '''
-        test_combined_rewards(summary_csv_path,
-                              alpha=ALPHA,
-                              nb_agents=NB_AGENTS)
-        '''
+            step_csv_name = build_filename(
+                simulation_index=simulation_number,
+                suffix="step_data",
+                empathy_alpha=empathy_alpha,
+            )
+            summary_csv_name = build_filename(
+                simulation_index=simulation_number,
+                suffix="episode_summary",
+                empathy_alpha=empathy_alpha,
+            )
+            step_csv_path = os.path.join(folder_name, step_csv_name)
+            summary_csv_path = os.path.join(folder_name, summary_csv_name)
+
+            run_simulation(
+                episode_number=EPISODE_NUMBER,
+                step_count=MAX_STEPS,
+                simulation_index=simulation_number,
+                step_file=step_csv_path,
+                summary_file=summary_csv_path,
+                seed=seed,
+                verbose=True,
+                save_steps=False,
+                alpha=empathy_alpha,
+            )
+            print(f"  Saved: {summary_csv_name}")
+
+    print(f"\n{'='*70}")
+    print(f"Done. {len(EMPATHY_CONDITIONS)} conditions x {NUM_RUNS_PER_CONDITION} runs = {len(EMPATHY_CONDITIONS) * NUM_RUNS_PER_CONDITION} CSVs in {folder_name}/")
+    print(f"{'='*70}\n")

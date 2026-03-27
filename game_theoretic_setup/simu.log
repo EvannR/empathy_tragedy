@@ -1,0 +1,52 @@
+nohup: ignoring input
+
+======================================================================
+CONDITION 1/7: NON_EMPATHIC (alpha=0.0)
+======================================================================
+
+/home/val/Depot_Github/marqueur_verbatim/.venv/lib/python3.12/site-packages/torch/cuda/__init__.py:814: UserWarning: Can't initialize amdsmi - Error code: 34
+  warnings.warn(f"Can't initialize amdsmi - Error code: {e.err_code}")
+  Simulation 1 — 0/500 (0%)
+  Simulation 1 — 50/500 (10%)
+  Simulation 1 — 100/500 (20%)
+  Simulation 1 — 150/500 (30%)
+  Simulation 1 — 200/500 (40%)
+  Simulation 1 — 250/500 (50%)
+  Simulation 1 — 300/500 (60%)
+  Simulation 1 — 350/500 (70%)
+  Simulation 1 — 400/500 (80%)
+  Simulation 1 — 450/500 (90%)
+  Saved: results_000_500_DQN_average_True_0.0_0.5_linear_0.5_2_0.001_0.99_1.0_0.995_0.01_16_64_5_493909_episode_summary.csv
+/home/val/Depot_Github/marqueur_verbatim/.venv/lib/python3.12/site-packages/torch/cuda/__init__.py:814: UserWarning: Can't initialize amdsmi - Error code: 34
+  warnings.warn(f"Can't initialize amdsmi - Error code: {e.err_code}")
+  Simulation 2 — 0/500 (0%)
+  Simulation 2 — 50/500 (10%)
+  Simulation 2 — 100/500 (20%)
+  Simulation 2 — 150/500 (30%)
+  Simulation 2 — 200/500 (40%)
+  Simulation 2 — 250/500 (50%)
+  Simulation 2 — 300/500 (60%)
+  Simulation 2 — 350/500 (70%)
+  Simulation 2 — 400/500 (80%)
+  Simulation 2 — 450/500 (90%)
+  Saved: results_001_500_DQN_average_True_0.0_0.5_linear_0.5_2_0.001_0.99_1.0_0.995_0.01_16_64_5_791907_episode_summary.csv
+
+==============================  Simulation 3 — 50/500 (10%)
+  Simulation 3 — 100/500 (20%)
+  Simulation 3 — 150/500 (30%)
+  Simulation 3 — 200/500 (40%)
+  Simulation 3 — 250/500 (50%)
+  Simulation 3 — 300/500 (60%)
+  Simulation 3 — 350/500 (70%)
+  Simulation 3 — 400/500 (80%)
+  Simulation 3 — 450/500 (90%)
+  Saved: results_002_500_DQN_average_True_0.0_0.5_linear_0.5_2_0.001_0.99_1.0_0.995_0.01_16_64_5_791907_episode_summary.csv
+  Simulation 4 — 0/500 (0%)
+  Simulation 4 — 50/500 (10%)
+  Simulation 4 — 100/500 (20%)
+  Simulation 4 — 150/500 (30%)
+_0.001_0.99_1.0_0.995_0.01_16_64_5_472991_episode_summary.csv
+  Simulation 2 — 0/500 (0%)
+  Simulation 2 — 50/500 (10%)
+  Simulation 2 — 100/500 (20%)
+  Simulation 2 — 150/500 (30%)

@@ -10,3 +10,5 @@ alpha = 0.3
 total = alpha * empathic + (1-alpha) * personal
 
 print(total)
+
+# was is das ? 

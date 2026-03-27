@@ -1,0 +1,431 @@
+"""
+agent policies for the game-theoretic empathy / tragedy-of-the-commons setup.
+2x2 matrix version: agents carry both a see_emotions flag (observation dimension)
+and an alpha parameter (reward dimension) as per-agent attributes.
+
+this module defines:
+  - Agent           : base agent class that tracks meal history and total meals.
+                      now stores see_emotions and alpha as per-agent attributes.
+  - ReplayBuffer    : experience replay buffer used by DQN agents.
+  - QAgent          : tabular Q-learning agent (epsilon-greedy, Q-table).
+  - DQNNetwork      : two-hidden-layer feedforward network used as the Q-function approximator.
+  - DQNAgent        : deep Q-network agent with experience replay and a target network.
+  - SocialRewardCalculator : computes emotion signals (linear or sigmoid smoothing),
+        personal satisfaction, empathic reward (mean emotion of others), and the
+        combined reward  r = (1 - alpha_i) * personal_i + alpha_i * empathic_i.
+        alpha can now be a per-agent list.
+
+all agent classes inherit from Agent and share the same step() / select_action()
+interface so they can be used interchangeably in GameTheoreticEnv.
+"""
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from collections import deque, namedtuple
+import random
+
+
+class Agent:
+    def __init__(self,
+                 agent_id,
+                 memory_size=10,
+                 see_emotions=True,   # observation dimension: does this agent observe others' emotions?
+                 alpha=0.5):          # reward dimension: how much does this agent weight others' emotions?
+        self.agent_id = agent_id
+        self.memory_size = memory_size
+        self.meal_history = deque([0] * memory_size, maxlen=memory_size)
+        self.total_meals = 0
+        self.see_emotions = see_emotions
+        self.alpha = alpha
+
+    def record_meal(self, success: bool, reward: float):
+        """record whether the agent successfully ate in this timestep."""
+        self.meal_history.append(success)
+        if len(self.meal_history) > self.memory_size:
+            self.meal_history.pop(0)
+        if success:
+            self.total_meals += 1
+
+    def get_recent_meals(self):
+        """return the number of recent successful meals in the memory window."""
+        return sum(self.meal_history)
+
+    def reset(self, observation=None):
+        self.current_state = observation
+        self.previous_action = None
+        self.meal_history = deque([0] * self.memory_size, maxlen=self.memory_size)
+
+
+
+Experience = namedtuple('Experience', ['state',
+                                       'action',
+                                       'reward',
+                                       'next_state',
+                                       'done'])
+
+
+class ReplayBuffer:
+    """replay memory buffer for DQN experience replay."""
+    def __init__(self, capacity=10000):
+        self.buffer = deque(maxlen=capacity)
+
+    def add(self, state, action, reward, next_state, done):
+        """add an experience to the buffer, normalising types for torch."""
+        if isinstance(action, (list, tuple)):
+            action = np.array([action[0]], dtype=np.int64)
+        elif isinstance(action, np.ndarray):
+            action = np.array([action.item()], dtype=np.int64)
+        else:
+            action = np.array([int(action)], dtype=np.int64)
+
+        state = np.array(state, dtype=np.float32)
+        if not isinstance(reward, (int, float)):
+            reward = float(reward)
+        next_state = np.array(next_state, dtype=np.float32)
+        if not isinstance(done, bool):
+            done = bool(done.item()) if isinstance(done, np.ndarray) else bool(done)
+
+        self.buffer.append(Experience(state, action, reward, next_state, done))
+
+    def sample(self, batch_size):
+        """sample a batch of experiences from the buffer."""
+        experiences = random.sample(self.buffer, min(batch_size, len(self.buffer)))
+
+        states = torch.from_numpy(np.vstack([e.state for e in experiences])).float()
+        actions = torch.from_numpy(np.vstack([e.action for e in experiences])).long()
+        rewards = torch.tensor([[e.reward] for e in experiences], dtype=torch.float)
+        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences])).float()
+        dones = torch.tensor([[int(e.done)] for e in experiences], dtype=torch.float)
+
+        return states, actions, rewards, next_states, dones
+
+    def __len__(self):
+        return len(self.buffer)
+
+
+class QAgent(Agent):
+    def __init__(self, state_size, action_size, agent_id=0, learning_rate=0.1,
+                 gamma=0.99, epsilon=1.0, epsilon_decay=0.995,
+                 epsilon_min=0.01, memory_size=10,
+                 see_emotions=True, alpha=0.5):
+        super().__init__(agent_id, memory_size=memory_size,
+                         see_emotions=see_emotions, alpha=alpha)
+
+        self.state_size = state_size
+        self.action_size = action_size
+        self.learning_rate = learning_rate
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.epsilon_decay = epsilon_decay
+        self.epsilon_min = epsilon_min
+
+        self.q_table = {}
+
+        self.current_state = None
+        self.previous_action = None
+
+    def get_state_key(self, state):
+        """convert the state into a hashable key for Q-table lookup."""
+        if isinstance(state, np.ndarray):
+            return tuple(state.flatten())
+        elif isinstance(state, (list, tuple)):
+            return tuple(state)
+        else:
+
+            return (state,)
+
+    def get_q_values(self, state):
+        """return q-values for the given state, initialising to zeros if unseen."""
+        state_key = self.get_state_key(state)
+        if state_key not in self.q_table:
+            self.q_table[state_key] = np.zeros(self.action_size)
+        return self.q_table[state_key]
+
+    def select_action(self, state):
+        """select an action using epsilon-greedy exploration."""
+        if np.random.random() < self.epsilon:
+            return int(np.random.choice(self.action_size))
+        q_values = self.get_q_values(state)
+        return int(np.argmax(q_values))
+
+    def learn(self, state, action, reward, next_state, done):
+        """update the Q-table with one-step TD target."""
+        state_key = self.get_state_key(state)
+        next_state_key = self.get_state_key(next_state)
+
+        q_values = self.get_q_values(state)
+        # if terminal state, future value is zero
+        next_q_values = self.get_q_values(next_state) if not done else np.zeros(self.action_size)
+        # TD target = immediate reward + discounted best future Q
+        target = reward + self.gamma * np.max(next_q_values)
+        q_values[action] = q_values[action] + self.learning_rate * (target - q_values[action])
+        self.q_table[state_key] = q_values
+
+        # decay exploration rate toward minimum
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
+    def start_episode(self, state):
+        """initialize a new episode."""
+        self.current_state = state
+        self.previous_action = None
+
+    def step(self, next_state, reward, done):
+        """perform one step: learn from the previous transition, then pick a new action."""
+        if self.current_state is not None and self.previous_action is not None:
+            self.learn(self.current_state, self.previous_action, reward, next_state, done)
+
+        self.current_state = next_state
+        action = self.select_action(next_state)
+        self.previous_action = action
+
+        return action
+
+
+class DQNNetwork(nn.Module):
+    def __init__(self, state_size, action_size, hidden_size=64):
+        super(DQNNetwork, self).__init__()
+
+        self.fc1 = nn.Linear(state_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, action_size)
+
+    def forward(self, state):
+        """forward pass: state -> hidden layers with relu -> Q-values per action."""
+        x = torch.relu(self.fc1(state))
+        x = torch.relu(self.fc2(x))
+        return self.fc3(x)  # raw Q-values, no activation
+
+
+class DQNAgent(Agent):
+    def __init__(self, state_size, action_size, agent_id=0, hidden_size=64,
+                 learning_rate=0.001, gamma=0.99, epsilon=1.0,
+                 epsilon_decay=0.995, epsilon_min=0.01, batch_size=64,
+                 update_target_every=10,
+                 see_emotions=True, alpha=0.5):
+        super().__init__(agent_id, see_emotions=see_emotions, alpha=alpha)
+        self.agent_id = agent_id
+        self.state_size = state_size
+        self.action_size = action_size
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.epsilon_decay = epsilon_decay
+        self.epsilon_min = epsilon_min
+        self.batch_size = batch_size
+        self.update_target_every = update_target_every
+        self.steps = 0
+
+        self.policy_network = DQNNetwork(state_size, action_size, hidden_size)
+        self.target_network = DQNNetwork(state_size, action_size, hidden_size)
+        self.target_network.load_state_dict(self.policy_network.state_dict())
+
+        self.optimizer = optim.Adam(self.policy_network.parameters(), lr=learning_rate)
+        self.memory = ReplayBuffer()
+
+        self.current_state = None
+        self.previous_action = None
+
+    def select_action(self, state):
+        """select an action using epsilon-greedy exploration."""
+        if np.random.random() < self.epsilon:
+            return int(np.random.choice(self.action_size))
+
+        if not isinstance(state, np.ndarray):
+            state = np.array(state, dtype=np.float32)
+
+        state_tensor = torch.from_numpy(state).float().unsqueeze(0)
+        self.policy_network.eval()
+        with torch.no_grad():
+            action_values = self.policy_network(state_tensor)
+        self.policy_network.train()
+
+        return int(np.argmax(action_values.cpu().data.numpy()))
+
+    def learn(self, experiences):
+        """learn from a batch of experiences using DQN loss."""
+        states, actions, rewards, next_states, dones = experiences
+
+        try:
+            # Q(s,a) from the policy network for the actions actually taken
+            q_expected = self.policy_network(states).gather(1, actions)
+            # max_a' Q_target(s', a') from the frozen target network
+            q_targets_next = self.target_network(next_states).detach().max(1)[0].unsqueeze(1)
+            # TD target: r + gamma * max Q_target(s',a') * (1 - done)
+            q_targets = rewards + (self.gamma * q_targets_next * (1 - dones))
+
+            loss = F.mse_loss(q_expected, q_targets)
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            # periodically sync target network weights with policy network
+            self.steps += 1
+            if self.steps % self.update_target_every == 0:
+                self.target_network.load_state_dict(self.policy_network.state_dict())
+        except Exception as e:
+            print(f"error during learning: {e}")
+            raise
+
+    def store_transition(self, state, action, reward, next_state, done):
+        """store an experience in the replay buffer after type normalisation."""
+        if not isinstance(state, np.ndarray):
+            state = np.array(state, dtype=np.float32)
+
+        if not isinstance(next_state, np.ndarray):
+            next_state = np.array(next_state, dtype=np.float32)
+
+        if isinstance(reward, (list, tuple, np.ndarray)):
+            reward = float(reward[0])
+        else:
+            reward = float(reward)
+
+        if isinstance(done, (list, tuple, np.ndarray)):
+            done = bool(done[0])
+        else:
+            done = bool(done)
+
+        self.memory.add(state, action, reward, next_state, done)
+
+    def step(self, next_state, reward, done):
+        """perform one step: store transition, learn if buffer is large enough, pick next action."""
+        if not isinstance(next_state, np.ndarray):
+            next_state = np.array(next_state, dtype=np.float32)
+
+        # store the (s, a, r, s', done) transition from the previous step
+        if self.current_state is not None and self.previous_action is not None:
+            self.store_transition(self.current_state, self.previous_action, reward, next_state, done)
+
+            # only start learning once enough experiences are collected
+            if len(self.memory) > self.batch_size:
+                experiences = self.memory.sample(self.batch_size)
+                self.learn(experiences)
+
+        self.current_state = next_state
+
+        action = self.select_action(next_state)
+        self.previous_action = action
+
+        # decay exploration rate toward minimum
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
+        return action
+
+    def start_episode(self, state):
+        """start a new episode by resetting state tracking."""
+        self.current_state = state
+        self.previous_action = None
+
+
+class SocialRewardCalculator:
+    """
+    calculate rewards based on agents' consumption and configurable emotional smoothing.
+
+    combines personal satisfaction (beta-weighted mix of last meal and history)
+    with an empathic signal (mean emotion of all other agents) to produce a
+    per-agent combined reward: r_i = (1 - alpha_i) * personal_i + alpha_i * empathic_i.
+
+    alpha can be a single float (same for all agents) or a list of per-agent values.
+    """
+    def __init__(self, nb_agents, alpha=0.5, beta=0.5, threshold=0.7,
+                 smoothing='linear', sigmoid_gain=10.0):
+        """
+        parameters:
+        -----------
+        nb_agents : int
+            number of agents in the environment
+        alpha : float or list of float
+            weight on others' satisfaction vs. personal satisfaction (0-1).
+            if a single float, it is broadcast to all agents.
+            if a list, it must have length nb_agents.
+        beta : float
+            balance last vs. history consumption for personal satisfaction (0-1)
+        threshold : float
+            consumption rate threshold for neutral emotion (0-1)
+        smoothing : str
+            'linear' or 'sigmoid', type of mapping from rate to emotion signal
+        sigmoid_gain : float
+            steepness for sigmoid mapping
+        """
+        self.nb_agents = nb_agents
+        # normalise alpha to always be a per-agent list internally
+        if isinstance(alpha, (list, np.ndarray)):
+            assert len(alpha) == nb_agents, "alpha list length must match nb_agents"
+            self.alpha = [float(a) for a in alpha]
+        else:
+            self.alpha = [float(alpha)] * nb_agents
+        self.beta = beta
+        self.threshold = threshold
+        self.smoothing = smoothing
+        self.sigmoid_gain = sigmoid_gain
+
+    def _consumption_rate(self, agent):
+        """return average consumption rate [0,1] based on binary meal_history."""
+        if not agent.meal_history:
+            return 0.0
+        return sum(agent.meal_history) / len(agent.meal_history)
+
+    def _linear_emotion(self, rate):
+        """linear mapping from rate to emotion signal [-1,1] based on threshold."""
+        t = self.threshold
+        if rate >= t:
+            return (rate - t) / (1 - t) if t < 1 else 1.0
+        return - (t - rate) / t if t > 0 else -1.0
+
+    def _sigmoid_emotion(self, rate):
+        """sigmoid mapping from rate to emotion signal [-1,1] centered at threshold."""
+        g = self.sigmoid_gain
+        t = self.threshold
+        norm = (rate - t) / (1 - t) if rate >= t else (rate - t) / t
+        exp_val = np.exp(-g * norm)
+        return 2.0 / (1.0 + exp_val) - 1.0
+
+    def emotion_from_rate(self, rate):
+        """compute emotion signal from consumption rate using the chosen smoothing."""
+        if self.smoothing == 'sigmoid':
+            return self._sigmoid_emotion(rate)
+        return self._linear_emotion(rate)
+
+    def calculate_personal_satisfaction(self, agent):
+        """compute personal satisfaction from last meal and history."""
+        if agent.meal_history:
+            last = 1.0 if agent.meal_history[-1] > 0 else 0.0
+            hist = sum(agent.meal_history) / len(agent.meal_history)
+        else:
+            last, hist = 0.0, 0.0
+        return self.beta * last + (1 - self.beta) * hist
+
+    def calculate_emotions(self, agents):
+        """return list of emotion signals for each agent."""
+        return [self.emotion_from_rate(self._consumption_rate(a)) for a in agents]
+
+    def calculate_rewards(self, agents):
+        """
+        compute and return:
+        - emotions   : list of emotion signals ([-1,1])
+        - personal   : list of personal satisfaction values ([0,1])
+        - empathic   : list of empathic signals ([-1,1])
+        - total      : list of total rewards, using per-agent alpha:
+                       total_i = (1 - alpha_i) * personal_i + alpha_i * empathic_i
+        """
+        personal = [self.calculate_personal_satisfaction(a) for a in agents]
+
+        emotions = self.calculate_emotions(agents)
+
+        # empathic reward: mean emotion of all other agents
+        empathic_reward = []
+        for idx, emo in enumerate(emotions):
+            others_emo = np.mean([e for j, e in enumerate(emotions) if j != idx])
+            empathic_reward.append(others_emo)
+
+        # total reward: per-agent weighted combination
+        total = [
+            (1 - self.alpha[i]) * personal[i] + self.alpha[i] * empathic_reward[i]
+            for i in range(self.nb_agents)
+        ]
+
+        return emotions, personal, empathic_reward, total
