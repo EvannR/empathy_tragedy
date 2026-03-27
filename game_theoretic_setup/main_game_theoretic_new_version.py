@@ -29,10 +29,10 @@ Second experiment : ANOVA
 Third experiment : multiple ALPHA
 '''
 
-SIMULATION_NUMBER = 2      # number of simulation runs (also used as seed per run)
+SIMULATION_NUMBER = 3      # number of simulation runs (also used as seed per run)
 EPISODE_NUMBER = 50        # number of episodes per simulation
 NB_AGENTS = 6
-MAX_STEPS = 20         # number of steps per episode
+MAX_STEPS = 100         # number of steps per episode
 INITIAL_RESOURCES = 8   # number of ressource at the beginning of each episode
 ENVIRONMENT_TYPE = "stochastic"  # 'deterministic' or 'stochastic'
 
